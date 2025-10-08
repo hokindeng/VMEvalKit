@@ -15,6 +15,8 @@ import json
 from io import BytesIO
 from PIL import Image
 from tenacity import retry, stop_after_attempt, wait_exponential
+import uuid
+import boto3
 
 from ..models.base import BaseVideoModel
 
@@ -39,6 +41,8 @@ class LumaDreamMachine(BaseVideoModel):
         enhance_prompt: bool = True,
         loop_video: bool = False,
         aspect_ratio: str = "16:9",
+        model: str = "ray-2",
+        s3_bucket: Optional[str] = None,
         **kwargs
     ):
         """
@@ -64,6 +68,8 @@ class LumaDreamMachine(BaseVideoModel):
         self.enhance_prompt = enhance_prompt
         self.loop_video = loop_video
         self.aspect_ratio = aspect_ratio
+        self.model = model
+        self.s3_bucket = s3_bucket or os.getenv("S3_BUCKET", "vmevalkit")
         
         super().__init__(name="luma_dream_machine", **kwargs)
     
@@ -99,19 +105,38 @@ class LumaDreamMachine(BaseVideoModel):
         Returns:
             Path to generated video file
         """
-        # Preprocess image
-        pil_image = self.preprocess_image(image)
-        
-        # Encode image to base64
-        image_base64 = self._encode_image(pil_image)
-        
+        # Ensure public image URL per Luma docs (keyframes requires URL)
+        image_url = self._ensure_image_url(image)
+
+        # Map resolution to Luma's accepted strings
+        _, height = resolution
+        if height >= 2160:
+            resolution_str = "4k"
+        elif height >= 1080:
+            resolution_str = "1080"
+        elif height >= 720:
+            resolution_str = "720p"
+        else:
+            resolution_str = "540p"
+
+        payload = {
+            "prompt": text_prompt,
+            "model": self.model,
+            "keyframes": {
+                "frame0": {
+                    "type": "image",
+                    "url": image_url
+                }
+            },
+            "enhance_prompt": self.enhance_prompt,
+            "loop": self.loop_video,
+            "aspect_ratio": self.aspect_ratio,
+            "duration": f"{int(duration)}s",
+            "resolution": resolution_str
+        }
+
         # Create generation request
-        generation_id = self._start_generation(
-            image_base64=image_base64,
-            prompt=text_prompt,
-            duration=duration,
-            resolution=resolution
-        )
+        generation_id = self._start_generation(payload=payload)
         
         # Poll for completion
         video_url = self._poll_for_completion(generation_id)
@@ -121,11 +146,38 @@ class LumaDreamMachine(BaseVideoModel):
         
         return video_path
     
-    def _encode_image(self, image: Image.Image) -> str:
-        """Encode PIL Image to base64 string."""
+    def _encode_image(self, image: Image.Image) -> bytes:
+        """Encode PIL Image to raw PNG bytes for upload."""
         buffered = BytesIO()
         image.save(buffered, format="PNG")
-        return base64.b64encode(buffered.getvalue()).decode('utf-8')
+        return buffered.getvalue()
+
+    def _ensure_image_url(self, image: Union[str, Path, Image.Image]) -> str:
+        """Return a URL for the image. If local/image object, upload to S3 and return a presigned URL."""
+        if isinstance(image, (str, Path)):
+            s = str(image)
+            if s.startswith("http://") or s.startswith("https://"):
+                return s
+            pil = self.preprocess_image(image)
+        else:
+            pil = self.preprocess_image(image)
+
+        data = self._encode_image(pil)
+        key = f"uploads/images/{uuid.uuid4().hex}.png"
+        session = boto3.session.Session(
+            aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+            aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+            aws_session_token=os.getenv("AWS_SESSION_TOKEN"),
+            region_name=os.getenv("AWS_REGION", os.getenv("AWS_DEFAULT_REGION", "us-east-1")),
+        )
+        s3 = session.client("s3")
+        s3.put_object(Bucket=self.s3_bucket, Key=key, Body=data, ContentType="image/png")
+        url = s3.generate_presigned_url(
+            ClientMethod='get_object',
+            Params={'Bucket': self.s3_bucket, 'Key': key},
+            ExpiresIn=3600
+        )
+        return url
     
     @retry(
         stop=stop_after_attempt(3),
@@ -133,10 +185,7 @@ class LumaDreamMachine(BaseVideoModel):
     )
     def _start_generation(
         self,
-        image_base64: str,
-        prompt: str,
-        duration: float,
-        resolution: tuple
+        payload: Dict[str, Any],
     ) -> str:
         """
         Start video generation job.
@@ -146,30 +195,19 @@ class LumaDreamMachine(BaseVideoModel):
         """
         endpoint = f"{self.BASE_URL}/generations"
         
-        # Map resolution to Luma's format
-        width, height = resolution
-        resolution_str = f"{width}x{height}"
-        
-        payload = {
-            "prompt": prompt,
-            "keyframes": {
-                "frame0": {
-                    "type": "image",
-                    "data": image_base64
-                }
-            },
-            "enhance_prompt": self.enhance_prompt,
-            "loop": self.loop_video,
-            "aspect_ratio": self.aspect_ratio,
-            "duration": int(duration),
-            "resolution": resolution_str
-        }
-        
         try:
             response = requests.post(endpoint, headers=self.headers, json=payload)
-            response.raise_for_status()
+            # On error, surface response content for debugging
+            if not response.ok:
+                try:
+                    err_body = response.text
+                except Exception:
+                    err_body = "<no body>"
+                raise LumaAPIError(
+                    f"Failed to start generation: HTTP {response.status_code} - {err_body}"
+                )
             data = response.json()
-            return data["id"]
+            return data.get("id") or data.get("generation_id")
         except requests.exceptions.RequestException as e:
             raise LumaAPIError(f"Failed to start generation: {e}")
     
