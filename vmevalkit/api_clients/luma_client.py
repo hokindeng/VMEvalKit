@@ -71,6 +71,9 @@ class LumaDreamMachine(BaseVideoModel):
         self.model = model
         self.s3_bucket = s3_bucket or os.getenv("S3_BUCKET", "vmevalkit")
         
+        # Print debug info
+        print(f"[Luma] Initialized with enhance_prompt={enhance_prompt}, model={model}")
+        
         super().__init__(name="luma_dream_machine", **kwargs)
     
     def supports_text_image_input(self) -> bool:
@@ -134,6 +137,12 @@ class LumaDreamMachine(BaseVideoModel):
             "duration": f"{int(duration)}s",
             "resolution": resolution_str
         }
+        
+        print(f"[Luma] Sending request with:")
+        print(f"  - Prompt: {text_prompt}")
+        print(f"  - Image URL: {image_url[:100]}...")
+        print(f"  - Model: {self.model}")
+        print(f"  - Enhance prompt: {self.enhance_prompt}")
 
         # Create generation request
         generation_id = self._start_generation(payload=payload)

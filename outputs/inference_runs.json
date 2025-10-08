@@ -1,0 +1,52 @@
+[
+  {
+    "model": "luma-dream-machine",
+    "prompt": "Reach the red flag with the green dot; keep markers visible in both frames.",
+    "image": "data/generated_mazes/irregular_0000_first.png",
+    "duration": 1.5e-05,
+    "timestamp": "2025-10-08T19:04:09.021237",
+    "run_id": "luma-dream-machine_irregular_0000",
+    "status": "failed",
+    "error": "Luma API key required. Set LUMA_API_KEY env var or pass api_key parameter."
+  },
+  {
+    "model": "luma-dream-machine",
+    "prompt": "Reach the red flag with the green dot; keep markers visible in both frames.",
+    "image": "data/generated_mazes/irregular_0000_first.png",
+    "duration": 1.2e-05,
+    "timestamp": "2025-10-08T19:04:22.604506",
+    "run_id": "luma-dream-machine_irregular_0000",
+    "status": "failed",
+    "error": "Luma API key required. Set LUMA_API_KEY env var or pass api_key parameter."
+  },
+  {
+    "model": "luma-dream-machine",
+    "prompt": "Reach the red flag with the green dot; keep markers visible in both frames.",
+    "image": "data/generated_mazes/irregular_0000_first.png",
+    "duration": 11.705401,
+    "timestamp": "2025-10-08T19:04:47.224539",
+    "run_id": "luma-dream-machine_irregular_0000",
+    "status": "failed",
+    "error": "Generation failed: 400: failed to moderate image"
+  },
+  {
+    "model": "luma-dream-machine",
+    "prompt": "Show the green start marker at begin, then at the red flag in the final frame.",
+    "image": "data/generated_mazes/irregular_0001_first.png",
+    "duration": 12.176345,
+    "timestamp": "2025-10-08T19:05:33.543283",
+    "run_id": "luma-dream-machine_irregular_0001",
+    "status": "failed",
+    "error": "Generation failed: 400: failed to moderate image"
+  },
+  {
+    "model": "luma-dream-machine",
+    "prompt": "Move the blue star from start to the circle target.",
+    "image": "data/generated_mazes/knowwhat_0000_first.png",
+    "duration": 12.477823,
+    "timestamp": "2025-10-08T19:05:53.745440",
+    "run_id": "luma-dream-machine_knowwhat_0000",
+    "status": "failed",
+    "error": "Generation failed: 400: failed to moderate image"
+  }
+]
