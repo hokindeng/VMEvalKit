@@ -4,6 +4,7 @@ S3 uploader for temporary public access to maze images.
 
 import os
 import boto3
+from botocore.config import Config
 from pathlib import Path
 from typing import Optional
 from datetime import datetime
@@ -20,15 +21,20 @@ class S3ImageUploader:
             bucket_name: S3 bucket name (defaults to S3_BUCKET env var)
         """
         self.bucket_name = bucket_name or os.getenv("S3_BUCKET", "vmevalkit")
-        self.region = os.getenv("AWS_REGION", os.getenv("AWS_DEFAULT_REGION", "us-east-1"))
+        # Force us-east-2 region for vmevalkit bucket
+        # The bucket is in us-east-2 but AWS_REGION env var might be set to us-east-1
+        self.region = "us-east-2"
         
-        # Initialize S3 client
+        # Initialize S3 client with signature version 4 and correct region
         self.s3_client = boto3.client(
             's3',
             aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
             aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
             aws_session_token=os.getenv("AWS_SESSION_TOKEN"),
-            region_name=self.region
+            config=Config(
+                region_name=self.region,
+                signature_version='s3v4'
+            )
         )
         
         # Test prefix for uploaded images
