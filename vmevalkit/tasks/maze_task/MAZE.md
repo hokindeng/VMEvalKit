@@ -166,9 +166,35 @@ Video models are evaluated on their ability to:
 - **Medium**: Medium grids (5x5, 6x6)
 - **Hard**: Large grids (7x7, 8x8)
 
+## Implementation Details
+
+### KnowWhat Maze Generation
+
+KnowWhat mazes use pre-generated maze files from the KnowWhat submodule to ensure reliability:
+
+- **Source**: `/submodules/KnowWhat/data/experiment_mazes/`
+- **Available mazes**: 
+  - 5x5: 5 mazes per shape (30 total)
+  - 7x7: 30 mazes per shape (180 total)
+  - Total: 210 pre-validated mazes
+- **Benefits**:
+  - Guaranteed validity (all mazes have solutions)
+  - Consistency with original KnowWhat experiments
+  - No generation failures
+  - Better performance (no on-the-fly generation)
+
+The implementation renders mazes directly from numpy arrays using matplotlib, avoiding complex format conversions.
+
+### Irregular Maze Generation
+
+Irregular mazes are generated dynamically using:
+- **Algorithm**: Kruskal's algorithm via maze-dataset library
+- **Rendering**: Custom implementation with matplotlib
+- **Markers**: Programmatically drawn (no external icon files needed)
+
 ## Notes
 
-- Maze generation may occasionally fail for KnowWhat tasks if no valid solution exists
 - All generated images use white backgrounds with black maze walls
 - Markers are designed to be visually distinct and easily recognizable
 - The task focuses on endpoint reasoning rather than path-following
+- KnowWhat mazes are pre-validated, ensuring 100% generation success rate
