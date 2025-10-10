@@ -6,7 +6,12 @@
 
 ### Requirements
 - **MUST support Image + Text → Video** (critical for reasoning evaluation)
-- Follow unified interface: `generate(image_path, text_prompt, duration, **kwargs)`
+- Follow unified interface: `generate(image_path, text_prompt, duration=..., output_filename=None, **kwargs)`
+
+### Parameter Separation (MANDATORY)
+- Put long-lived configuration in `__init__` (e.g., `model`, `api_key`, `output_dir`, defaults).
+- Put per-run inputs in `generate(...)` (e.g., `image_path`, `text_prompt`, `duration`, `output_filename`, seeds).
+- Do NOT pass per-run args to constructors.
 
 ### For API Models (3 steps):
 1. **Create `vmevalkit/models/{provider}_inference.py`** with Service + Wrapper classes
@@ -32,7 +37,7 @@ VMEvalKit uses a **unified model registry** supporting:
 
 Both use identical interface:
 ```python
-def generate(self, image_path, text_prompt, duration=8.0, **kwargs) -> Dict[str, Any]
+def generate(self, image_path, text_prompt, duration=8.0, output_filename: Optional[str] = None, **kwargs) -> Dict[str, Any]
 ```
 
 ### 🌐 API-Based Models
@@ -134,10 +139,14 @@ class {Model}Service:
         if not {MODEL}_PATH.exists():
             raise FileNotFoundError(f"{Model} submodule not found. Run: git submodule update --init {ModelName}")
 
-    def _run_subprocess_inference(self, image_path: str, text_prompt: str, **kwargs) -> Dict[str, Any]:
+    def _run_subprocess_inference(self, image_path: str, text_prompt: str, output_filename: Optional[str] = None, **kwargs) -> Dict[str, Any]:
         """Use this for models that need subprocess execution"""
         start_time = time.time()
-        output_path = self.output_dir / f"{self.model_id}_{int(time.time())}.mp4"
+        # Use provided filename or generate one
+        if output_filename:
+            output_path = self.output_dir / output_filename
+        else:
+            output_path = self.output_dir / f"{self.model_id}_{int(time.time())}.mp4"
         
         cmd = [
             sys.executable, str({MODEL}_PATH / "inference.py"),  # Adjust to actual script
@@ -156,33 +165,33 @@ class {Model}Service:
         except subprocess.TimeoutExpired:
             return {"success": False, "error": "Timeout", "video_path": None}
     
-    def _run_direct_inference(self, image_path: str, text_prompt: str, **kwargs) -> Dict[str, Any]:
+    def _run_direct_inference(self, image_path: str, text_prompt: str, output_filename: Optional[str] = None, **kwargs) -> Dict[str, Any]:
         """Use this for models you can import directly"""
         try:
             # TODO: Import and run model directly
             # from {model_module} import {ModelClass}
             # model = {ModelClass}()
-            # result = model.generate(image_path, text_prompt)
+            # result = model.generate(image_path, text_prompt, output_filename=output_filename)
             return {"success": False, "error": "Direct inference not implemented", "video_path": None}
         except Exception as e:
             return {"success": False, "error": str(e), "video_path": None}
     
-    def generate(self, image_path: Union[str, Path], text_prompt: str, **kwargs) -> Dict[str, Any]:
+    def generate(self, image_path: Union[str, Path], text_prompt: str, duration: float = 8.0, output_filename: Optional[str] = None, **kwargs) -> Dict[str, Any]:
         if not Path(image_path).exists():
             return {"success": False, "error": f"Image not found: {image_path}", "video_path": None}
         
         # Choose your approach:
-        return self._run_subprocess_inference(str(image_path), text_prompt, **kwargs)
-        # OR: return self._run_direct_inference(str(image_path), text_prompt, **kwargs)
+        return self._run_subprocess_inference(str(image_path), text_prompt, output_filename=output_filename, **kwargs)
+        # OR: return self._run_direct_inference(str(image_path), text_prompt, output_filename=output_filename, **kwargs)
 
 class {Model}Wrapper:
     def __init__(self, model: str, output_dir: str = "./outputs", **kwargs):
         self.model = model
         self.service = {Model}Service(model_id=model, output_dir=output_dir, **kwargs)
     
-    def generate(self, image_path: Union[str, Path], text_prompt: str, duration: float = 8.0, **kwargs) -> Dict[str, Any]:
+    def generate(self, image_path: Union[str, Path], text_prompt: str, duration: float = 8.0, output_filename: Optional[str] = None, **kwargs) -> Dict[str, Any]:
         """VMEvalKit unified interface - EXACT signature required"""
-        return self.service.generate(image_path=image_path, text_prompt=text_prompt, **kwargs)
+        return self.service.generate(image_path=image_path, text_prompt=text_prompt, duration=duration, output_filename=output_filename, **kwargs)
 ```
 
 ### 📝 Registration (Same for Both Types)
@@ -242,7 +251,10 @@ result = run_inference(
     model_name="your-model-name",
     image_path="test.png",
     text_prompt="test prompt",
-    output_dir="./test_outputs"
+    output_dir="./test_outputs",
+    # Per-run options go here:
+    output_filename="example.mp4",
+    duration=8
 )
 print("Success:", result.get("success"))
 print("Video:", result.get("video_path"))
@@ -254,6 +266,11 @@ print("Video:", result.get("video_path"))
 - **File Management**: Use `Path` objects, create dirs automatically, unique filenames
 - **Documentation**: Clear docstrings, document limitations, provide examples
 - **Naming**: `{Provider}Service`/`{Provider}Wrapper`, `{provider}_inference.py`
+
+### Do / Don't
+- Do: put `model`, `api_key`, `output_dir` in `__init__`; keep it stable across runs.
+- Do: pass `output_filename`, `duration`, `seed`, etc. to `generate(...)` per run.
+- Don't: pass per-run args (e.g., `output_filename`) to `__init__`.
 
 ## 🔧 Troubleshooting
 

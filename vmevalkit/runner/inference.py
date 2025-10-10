@@ -741,16 +741,18 @@ def run_inference(
     model_config = AVAILABLE_MODELS[model_name]
     model_class = model_config["class"]
     
-    # Create model instance with specific configuration
-    model = model_class(
-        api_key=api_key,
-        model=model_config["model"],
-        output_dir=output_dir,
-        **kwargs
-    )
+    # Create model instance with only constructor-safe parameters
+    init_kwargs = {
+        "model": model_config["model"],
+        "output_dir": output_dir,
+    }
+    if api_key is not None:
+        init_kwargs["api_key"] = api_key
+
+    model = model_class(**init_kwargs)
     
-    # Run inference
-    return model.generate(image_path, text_prompt)
+    # Run inference, forwarding runtime options (e.g., output_filename) to generate
+    return model.generate(image_path, text_prompt, **kwargs)
 
 
 class InferenceRunner:
