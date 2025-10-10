@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 import traceback
+from PIL import Image
 
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))
@@ -178,6 +179,32 @@ def create_output_structure(base_dir: Path) -> None:
     (base_dir / "results").mkdir(exist_ok=True, parents=True)
 
 
+def _ensure_real_png(image_path: str) -> bool:
+    """If file is SVG mislabeled as .png, convert to real PNG in-place using CairoSVG."""
+    try:
+        # Quick check by trying to open as PNG
+        Image.open(image_path).verify()
+        return True
+    except Exception:
+        # Fallback: detect SVG text and convert
+        try:
+            with open(image_path, 'rb') as f:
+                head = f.read(1024)
+            # Heuristic: look for '<svg' in the head bytes
+            if b"<svg" in head.lower():
+                import cairosvg
+                with open(image_path, 'rb') as f:
+                    svg_bytes = f.read()
+                cairosvg.svg2png(bytestring=svg_bytes, write_to=image_path)
+                # Validate conversion
+                Image.open(image_path).verify()
+                print(f"   🔧 Converted SVG→PNG in-place: {image_path}")
+                return True
+        except Exception as e:
+            print(f"   ⚠️  Image fix failed for {image_path}: {e}")
+    return False
+
+
 def run_single_inference(
     model_name: str,
     task: Dict[str, Any],
@@ -219,6 +246,9 @@ def run_single_inference(
         # Check if image exists
         if not Path(image_path).exists():
             raise FileNotFoundError(f"Image not found: {image_path}")
+        # Validate image is a real PNG (auto-fix if it's actually SVG)
+        if not _ensure_real_png(image_path):
+            raise ValueError(f"Input image invalid or corrupt: {image_path}")
         
         # Run inference
         result = run_inference(

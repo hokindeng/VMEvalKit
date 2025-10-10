@@ -22,6 +22,8 @@ if chess_path not in sys.path:
 
 import chess
 import chess.svg
+import io
+from PIL import Image, ImageDraw, ImageFont
 
 
 class SelfContainedMateGenerator:
@@ -314,15 +316,82 @@ def generate_chess_board_png(fen: str, output_path: str, board_size: int = 400) 
         board = chess.Board(fen)
         svg_content = chess.svg.board(board=board, size=board_size)
         
-        # For now, save as SVG with .png extension to match maze format
-        # TODO: Convert to actual PNG using cairosvg or similar
-        with open(output_path, 'w') as f:
-            f.write(svg_content)
-        
-        return True
+        # Prefer high-fidelity SVG→PNG when available
+        try:
+            import cairosvg  # type: ignore
+            cairosvg.svg2png(bytestring=svg_content.encode('utf-8'), write_to=output_path)
+            return True
+        except Exception:
+            # Fallback: pure-PIL rasterizer (no native deps). Draw simple board with glyph pieces.
+            _render_board_png_with_pil(board, output_path, board_size)
+            return True
     except Exception as e:
         print(f"❌ Error generating board for {fen}: {e}")
         return False
+
+
+def _render_board_png_with_pil(board: chess.Board, output_path: str, board_size: int = 400) -> None:
+    """Render a simple chessboard PNG using PIL (no Cairo dependency)."""
+    img = Image.new("RGB", (board_size, board_size), color="white")
+    draw = ImageDraw.Draw(img)
+    square_px = board_size // 8
+    light = (240, 217, 181)
+    dark = (181, 136, 99)
+    text_color_white = (245, 245, 245)
+    text_color_black = (20, 20, 20)
+
+    # Attempt to load a larger font; fallback to default
+    try:
+        font_size = int(square_px * 0.8)
+        # DejaVuSans includes Unicode chess glyphs (U+2654..U+265F)
+        font = ImageFont.truetype("DejaVuSans.ttf", font_size)
+    except Exception:
+        # Fallback to default font; glyph quality may vary
+        font = ImageFont.load_default()
+
+    # Draw squares
+    for rank in range(8):
+        for file in range(8):
+            x0 = file * square_px
+            y0 = (7 - rank) * square_px  # rank 0 at bottom
+            color = light if (rank + file) % 2 == 0 else dark
+            draw.rectangle([x0, y0, x0 + square_px, y0 + square_px], fill=color)
+
+    # Unicode glyphs for chess pieces (white: ♔♕♖♗♘♙, black: ♚♛♜♝♞♟)
+    unicode_map = {
+        'P': '\u2659', 'N': '\u2658', 'B': '\u2657', 'R': '\u2656', 'Q': '\u2655', 'K': '\u2654',
+        'p': '\u265F', 'n': '\u265E', 'b': '\u265D', 'r': '\u265C', 'q': '\u265B', 'k': '\u265A',
+    }
+
+    # Draw pieces using glyphs (fallback to letters if glyph unsupported)
+    piece_map = board.piece_map()
+    for sq, piece in piece_map.items():
+        file = chess.square_file(sq)
+        rank = chess.square_rank(sq)
+        x_center = file * square_px + square_px // 2
+        y_center = (7 - rank) * square_px + square_px // 2
+        sym = piece.symbol()
+        label = unicode_map.get(sym, sym.upper())
+        # Measure text size for centering
+        try:
+            bbox = draw.textbbox((0, 0), label, font=font)
+            w = bbox[2] - bbox[0]
+            h = bbox[3] - bbox[1]
+        except Exception:
+            w, h = draw.textlength(label, font=font), int(square_px * 0.7)
+        # Choose fill and outline for contrast
+        fill_color = text_color_white if piece.color else text_color_black
+        outline_color = (0, 0, 0) if piece.color else (255, 255, 255)
+        x = x_center - w / 2
+        y = y_center - h / 2
+        # Simple outline by drawing around the target point
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                if dx == 0 and dy == 0:
+                    continue
+                draw.text((x + dx, y + dy), label, font=font, fill=outline_color)
+        draw.text((x, y), label, font=font, fill=fill_color)
+    img.save(output_path, format="PNG")
 
 
 def create_chess_task_pair(puzzle_data: Dict[str, Any], task_id: str) -> Dict[str, Any]:
