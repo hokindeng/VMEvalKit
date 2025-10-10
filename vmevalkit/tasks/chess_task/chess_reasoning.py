@@ -1,0 +1,427 @@
+#!/usr/bin/env python3
+"""
+Chess Reasoning Task for VMEvalKit
+
+Self-contained chess mate-in-1 task generation system.
+Follows the same data format as maze tasks with first/final frames and prompts.
+
+Author: VMEvalKit Team
+"""
+
+import sys
+import os
+import json
+import random
+from typing import List, Dict, Any, Optional, Set
+from datetime import datetime
+
+# Add python-chess to path
+chess_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'submodules', 'python-chess')
+if chess_path not in sys.path:
+    sys.path.append(chess_path)
+
+import chess
+import chess.svg
+
+
+class SelfContainedMateGenerator:
+    """Self-contained mate-in-1 position generator - no external dependencies."""
+    
+    def __init__(self):
+        self.generated_positions = []
+        self.position_hashes = set()
+    
+    def generate_mate_positions(self, num_positions: int = 50) -> List[Dict[str, Any]]:
+        """Generate mate-in-1 positions using built-in templates."""
+        print(f"🎯 Generating {num_positions} mate-in-1 positions...")
+        
+        # Generate using different strategies
+        self._generate_back_rank_mates()
+        self._generate_queen_corner_mates() 
+        self._generate_simple_piece_mates()
+        self._generate_position_variants()
+        
+        # Return requested number
+        available = min(num_positions, len(self.generated_positions))
+        selected = random.sample(self.generated_positions, available)
+        
+        print(f"✅ Generated {len(selected)} verified mate positions")
+        return selected
+    
+    def _add_position_if_valid(self, fen: str, mate_moves: List[str], 
+                              description: str, tags: List[str], difficulty: str = "easy") -> bool:
+        """Add position only if it's verified to work."""
+        try:
+            if fen in self.position_hashes:
+                return False
+            
+            board = chess.Board(fen)
+            valid_mates = []
+            
+            # Test each proposed mate move
+            for mate_san in mate_moves:
+                try:
+                    move = board.parse_san(mate_san)
+                    if move in board.legal_moves:
+                        test_board = board.copy()
+                        test_board.push(move)
+                        if test_board.is_checkmate():
+                            valid_mates.append(mate_san)
+                except:
+                    continue
+            
+            if not valid_mates:
+                return False
+            
+            # Create puzzle data
+            side_to_move = "white" if board.turn else "black"
+            puzzle_id = f"chess_{len(self.generated_positions):04d}"
+            
+            puzzle_data = {
+                "puzzle_id": puzzle_id,
+                "fen": fen,
+                "side_to_move": side_to_move,
+                "mate_moves": valid_mates,
+                "difficulty": difficulty,
+                "description": description,
+                "tags": tags
+            }
+            
+            self.generated_positions.append(puzzle_data)
+            self.position_hashes.add(fen)
+            return True
+            
+        except Exception:
+            return False
+    
+    def _generate_back_rank_mates(self):
+        """Generate back-rank mate variations - EXPANDED TO 50+ POSITIONS."""
+        print("🔥 Generating back-rank mates...")
+        
+        # MASSIVE expansion: All combinations of king positions, pawn structures, and pieces
+        king_positions = [
+            "k7", "1k6", "2k5", "3k4", "4k3", "5k2", "6k1", "7k"
+        ]
+        
+        pawn_structures = [
+            "ppp5", "1ppp4", "2ppp3", "3ppp2", "4ppp1", "5ppp",
+            "pppp4", "1pppp3", "2pppp2", "3pppp1", "4pppp",
+            "pp6", "1pp5", "2pp4", "3pp3", "4pp2", "5pp1", "6pp",
+            "p7", "1p6", "2p5", "3p4", "4p3", "5p2", "6p1", "7p"
+        ]
+        
+        attacking_pieces = [
+            ("R6K", "Ra8#", "Rook"), ("Q6K", "Qa8#", "Queen"),
+            ("1R5K", "Rb8#", "Rook"), ("1Q5K", "Qb8#", "Queen"),
+            ("2R4K", "Rc8#", "Rook"), ("2Q4K", "Qc8#", "Queen")
+        ]
+        
+        count = 0
+        for king_pos in king_positions:
+            for pawn_struct in pawn_structures:
+                for piece_pos, move, piece_name in attacking_pieces:
+                    fen = f"{king_pos}/{pawn_struct}/8/8/8/8/8/{piece_pos} w - - 0 1"
+                    desc = f"{piece_name} back-rank mate vs {king_pos} with {pawn_struct}"
+                    
+                    if self._add_position_if_valid(fen, [move], desc, ["back_rank", piece_name.lower()]):
+                        count += 1
+        
+        print(f"   Generated {count} back-rank positions")
+    
+    def _generate_queen_corner_mates(self):
+        """Generate Queen+King corner mates - EXPANDED TO 30+ POSITIONS."""
+        print("👑 Generating queen corner mates...")
+        
+        # Queen positions around corners
+        queen_positions = [
+            "6Q1", "5Q2", "4Q3", "3Q4", "2Q5", "1Q6", "Q7",
+            "7Q", "6Q1", "5Q2"
+        ]
+        
+        # Enemy king corner positions  
+        enemy_king_positions = [
+            "6k1", "7k", "5k2", "4k3"
+        ]
+        
+        # White king support positions
+        king_support_positions = [
+            "6K1", "5K2", "7K", "4K3", "3K4"
+        ]
+        
+        # Generate all combinations
+        count = 0
+        for enemy_king in enemy_king_positions:
+            for queen_pos in queen_positions:
+                for king_pos in king_support_positions:
+                    fen = f"{enemy_king}/8/{queen_pos}/{king_pos}/8/8/8/8 w - - 0 1"
+                    
+                    # Try common queen mate moves
+                    possible_moves = [
+                        "Qa8#", "Qb8#", "Qc8#", "Qd8#", "Qe8#", "Qf8#", "Qg8#", "Qh8#",
+                        "Qa7#", "Qb7#", "Qc7#", "Qd7#", "Qe7#", "Qf7#", "Qg7#", "Qh7#"
+                    ]
+                    
+                    for move in possible_moves:
+                        desc = f"Queen corner mate: {enemy_king} vs Q+K"
+                        if self._add_position_if_valid(fen, [move], desc, ["queen", "corner"]):
+                            count += 1
+                            break  # Only need one working move per position
+        
+        print(f"   Generated {count} queen corner positions")
+    
+    def _generate_simple_piece_mates(self):
+        """Generate simple piece mates."""
+        print("⚡ Generating simple mates...")
+        
+        simple_patterns = [
+            # Black to move variants for variety
+            ("6qK", "6k1", "Qg7#", "Black queen mate", "black"),
+            ("5q1K", "6k1", "Qf7#", "Black queen f-file mate", "black"),
+            ("r6K", "6k1", "Ra7#", "Black rook mate", "black"),
+        ]
+        
+        count = 0
+        for queen_line, support_line, move, desc, side in simple_patterns:
+            fen = f"{queen_line}/8/{support_line}/8/8/8/8/8 b - - 0 1"
+            piece_name = "queen" if "q" in move.lower() else "rook"
+            
+            if self._add_position_if_valid(fen, [move], desc, [piece_name, "black_to_move"]):
+                count += 1
+        
+        print(f"   Generated {count} simple piece positions")
+    
+    def _generate_position_variants(self):
+        """Generate variants through position transformations.""" 
+        print("🔄 Generating position variants...")
+        
+        original_count = len(self.generated_positions)
+        original_positions = self.generated_positions[:]
+        
+        for puzzle in original_positions:
+            # Try horizontal mirroring
+            try:
+                mirrored_fen = self._mirror_fen_horizontal(puzzle["fen"])
+                if mirrored_fen and mirrored_fen != puzzle["fen"]:
+                    mirrored_moves = [self._mirror_move_horizontal(m) for m in puzzle["mate_moves"]]
+                    desc = puzzle["description"] + " (mirrored)"
+                    tags = puzzle["tags"] + ["mirrored"]
+                    
+                    self._add_position_if_valid(mirrored_fen, mirrored_moves, desc, tags, puzzle["difficulty"])
+            except:
+                continue
+        
+        variant_count = len(self.generated_positions) - original_count
+        print(f"   Generated {variant_count} position variants")
+    
+    def _mirror_fen_horizontal(self, fen: str) -> Optional[str]:
+        """Mirror FEN horizontally (a↔h files)."""
+        try:
+            parts = fen.split()
+            board = parts[0]
+            ranks = board.split('/')
+            mirrored_ranks = [rank[::-1] for rank in ranks]
+            mirrored_board = '/'.join(mirrored_ranks)
+            return mirrored_board + " " + " ".join(parts[1:])
+        except:
+            return None
+    
+    def _mirror_move_horizontal(self, move: str) -> str:
+        """Mirror move horizontally."""
+        file_map = {'a': 'h', 'b': 'g', 'c': 'f', 'd': 'e',
+                   'e': 'd', 'f': 'c', 'g': 'b', 'h': 'a'}
+        result = ""
+        for char in move:
+            result += file_map.get(char, char)
+        return result
+
+
+def generate_chess_board_svg(fen: str, board_size: int = 400) -> str:
+    """Generate SVG representation of chess board."""
+    try:
+        board = chess.Board(fen)
+        svg = chess.svg.board(board=board, size=board_size)
+        return svg
+    except Exception as e:
+        print(f"❌ Error generating board for {fen}: {e}")
+        return f'<svg width="{board_size}" height="{board_size}"><text x="10" y="20">Error: {e}</text></svg>'
+
+
+def create_chess_task_pair(puzzle_data: Dict[str, Any], task_id: str) -> Dict[str, Any]:
+    """
+    Create a chess task pair in the same format as maze tasks.
+    
+    Args:
+        puzzle_data: Chess puzzle information
+        task_id: Unique task identifier
+        
+    Returns:
+        Task pair dictionary matching maze format
+    """
+    
+    # Generate prompts
+    side = "White" if puzzle_data["side_to_move"] == "white" else "Black"
+    prompts = [
+        f"{side} to move. Find checkmate in one move.",
+        f"{side} can deliver checkmate in one move. Show the winning move.",
+        f"It's {side.lower()}'s turn. Demonstrate the checkmate in one move.",
+        f"{side} to play and mate in 1. Show the solution."
+    ]
+    
+    # Add pattern-specific prompts
+    if "back_rank" in puzzle_data.get("tags", []):
+        prompts.append(f"{side} to move. Find the back-rank mate.")
+    if "queen" in puzzle_data.get("tags", []):
+        prompts.append(f"Use the queen to deliver mate in one move.")
+    
+    prompt = random.choice(prompts)
+    
+    # Set up file paths (matching maze format)
+    base_dir = os.path.join(os.path.dirname(__file__), '..', '..', '..')
+    first_image_path = f"data/generated_chess/{task_id}_first.svg"
+    final_image_path = f"data/generated_chess/{task_id}_final.svg"
+    
+    # Generate first frame (initial position)
+    first_svg = generate_chess_board_svg(puzzle_data["fen"])
+    chess_dir = os.path.join(base_dir, "data", "generated_chess")
+    os.makedirs(chess_dir, exist_ok=True)
+    
+    first_full_path = os.path.join(base_dir, first_image_path)
+    with open(first_full_path, 'w') as f:
+        f.write(first_svg)
+    
+    # Generate final frame (after mate move)
+    board = chess.Board(puzzle_data["fen"])
+    mate_move = puzzle_data["mate_moves"][0]
+    move = board.parse_san(mate_move)
+    board.push(move)
+    
+    final_svg = generate_chess_board_svg(board.fen())
+    final_full_path = os.path.join(base_dir, final_image_path)
+    with open(final_full_path, 'w') as f:
+        f.write(final_svg)
+    
+    print(f"✅ Created chess task {task_id}: {puzzle_data['description']}")
+    
+    # Create task pair in EXACT same format as maze tasks
+    task_pair = {
+        "id": task_id,
+        "prompt": prompt,
+        "first_image_path": first_image_path,
+        "final_image_path": final_image_path,
+        "task_category": "Chess",
+        "chess_data": {
+            "generation_method": "mate_in_1_templates",
+            "initial_fen": puzzle_data["fen"],
+            "mate_moves": puzzle_data["mate_moves"],
+            "pattern_tags": puzzle_data.get("tags", [])
+        },
+        "difficulty": puzzle_data.get("difficulty", "easy"),
+        "side_to_move": puzzle_data["side_to_move"],
+        "mate_moves": puzzle_data["mate_moves"],  # For compatibility
+        "pattern_description": puzzle_data["description"],
+        "created_at": datetime.now().isoformat()
+    }
+    
+    return task_pair
+
+
+def create_chess_dataset(num_samples: int = 30) -> Dict[str, Any]:
+    """
+    Create chess reasoning dataset in EXACT same format as maze dataset.
+    
+    Args:
+        num_samples: Number of chess tasks to generate
+        
+    Returns:
+        Dataset dictionary matching maze format exactly
+    """
+    
+    print(f"🎯 Creating chess dataset with {num_samples} samples...")
+    print("=" * 50)
+    
+    # Generate mate positions using built-in generator
+    generator = SelfContainedMateGenerator()
+    positions = generator.generate_mate_positions(num_samples)
+    
+    if not positions:
+        print("❌ No positions generated!")
+        return {"name": "chess_tasks", "description": "Failed to generate", "pairs": []}
+    
+    # Create task pairs
+    pairs = []
+    for i, puzzle_data in enumerate(positions):
+        task_id = f"chess_{i:04d}"
+        try:
+            task_pair = create_chess_task_pair(puzzle_data, task_id)
+            pairs.append(task_pair)
+        except Exception as e:
+            print(f"❌ Failed to create task {task_id}: {e}")
+    
+    # Create dataset in EXACT same format as maze dataset
+    dataset = {
+        "name": "chess_tasks", 
+        "description": f"Chess mate-in-1 reasoning tasks for video model evaluation ({len(pairs)} pairs)",
+        "pairs": pairs
+    }
+    
+    # Save to data/chess_tasks/ (matching maze location)
+    base_dir = os.path.join(os.path.dirname(__file__), '..', '..', '..')
+    chess_tasks_dir = os.path.join(base_dir, "data", "chess_tasks")
+    os.makedirs(chess_tasks_dir, exist_ok=True)
+    output_path = os.path.join(base_dir, "data", "chess_tasks", "chess_tasks.json")
+    
+    with open(output_path, 'w') as f:
+        json.dump(dataset, f, indent=2)
+    
+    print(f"✅ Saved chess dataset: {output_path}")
+    print(f"🎯 Chess dataset created successfully!")
+    print(f"   Total tasks: {len(pairs)}")
+    print(f"   Images created: {len(pairs) * 2}")
+    print(f"   Dataset file: {output_path}")
+    
+    return dataset
+
+
+def main():
+    """Main function to generate chess dataset."""
+    print("🏁 Self-Contained Chess Reasoning Task Generator")
+    print("=" * 60)
+    
+    # Generate dataset
+    dataset = create_chess_dataset(num_samples=30)
+    
+    # Show statistics
+    if dataset.get("pairs"):
+        pairs = dataset["pairs"]
+        
+        # Count by difficulty
+        difficulty_counts = {}
+        side_counts = {"white": 0, "black": 0}
+        
+        for pair in pairs:
+            diff = pair.get("difficulty", "easy")
+            difficulty_counts[diff] = difficulty_counts.get(diff, 0) + 1
+            
+            side = pair.get("side_to_move", "white")
+            side_counts[side] += 1
+        
+        print(f"\n📊 Dataset Statistics:")
+        print(f"   Total pairs: {len(pairs)}")
+        print(f"   By difficulty: {difficulty_counts}")
+        print(f"   By side to move: {side_counts}")
+        
+        # Show sample tasks
+        print(f"\n🎯 Sample Tasks:")
+        for i, pair in enumerate(pairs[:3]):
+            print(f"\n{i+1}. {pair['id']} ({pair['difficulty']})")
+            print(f"   Prompt: {pair['prompt']}")
+            print(f"   Side to move: {pair['side_to_move']}")
+            print(f"   Solutions: {', '.join(pair['mate_moves'])}")
+            print(f"   First image: {pair['first_image_path']}")
+            print(f"   Final image: {pair['final_image_path']}")
+    
+    print(f"\n🚀 Self-contained chess reasoning dataset ready!")
+
+
+if __name__ == "__main__":
+    main()
