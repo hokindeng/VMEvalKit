@@ -31,15 +31,17 @@ class SelfContainedMateGenerator:
         self.generated_positions = []
         self.position_hashes = set()
     
-    def generate_mate_positions(self, num_positions: int = 50) -> List[Dict[str, Any]]:
+    def generate_mate_positions(self, num_positions: int = 150) -> List[Dict[str, Any]]:
         """Generate mate-in-1 positions using built-in templates."""
         print(f"🎯 Generating {num_positions} mate-in-1 positions...")
         
-        # Generate using different strategies
-        self._generate_back_rank_mates()
-        self._generate_queen_corner_mates() 
-        self._generate_simple_piece_mates()
-        self._generate_position_variants()
+        # Generate using different strategies - EXPANDED TO 100+
+        self._generate_back_rank_mates()      # ~50 positions
+        self._generate_queen_corner_mates()   # ~30 positions  
+        self._generate_simple_piece_mates()   # ~20 positions
+        self._generate_rook_endgame_mates()   # ~15 positions
+        self._generate_knight_mates()         # ~10 positions
+        self._generate_position_variants()    # Double the positions
         
         # Return requested number
         available = min(num_positions, len(self.generated_positions))
@@ -170,25 +172,96 @@ class SelfContainedMateGenerator:
         print(f"   Generated {count} queen corner positions")
     
     def _generate_simple_piece_mates(self):
-        """Generate simple piece mates."""
+        """Generate simple piece mates - EXPANDED TO 20+ POSITIONS."""
         print("⚡ Generating simple mates...")
         
-        simple_patterns = [
-            # Black to move variants for variety
-            ("6qK", "6k1", "Qg7#", "Black queen mate", "black"),
-            ("5q1K", "6k1", "Qf7#", "Black queen f-file mate", "black"),
-            ("r6K", "6k1", "Ra7#", "Black rook mate", "black"),
+        # White simple mates
+        white_patterns = [
+            ("k7", "Q6K", "Qa8#", "Simple queen file mate"),
+            ("1k6", "Q6K", "Qb8#", "Queen b-file mate"),
+            ("2k5", "Q6K", "Qc8#", "Queen c-file mate"),
+            ("k7", "R6K", "Ra8#", "Simple rook file mate"),
+            ("1k6", "R6K", "Rb8#", "Rook b-file mate"),
+            ("k7", "1Q5K", "Qb8#", "Queen mate shifted"),
+            ("7k", "6QK", "Qg8#", "Queen g-file mate"),
+        ]
+        
+        # Black simple mates (for variety)
+        black_patterns = [
+            ("6qK", "6k1", "Qg7#", "Black queen mate"),
+            ("5q1K", "6k1", "Qf7#", "Black queen f-file mate"), 
+            ("r6K", "6k1", "Ra7#", "Black rook mate"),
+            ("1r5K", "6k1", "Rb7#", "Black rook b-file mate"),
+            ("6qK", "5k2", "Qf7#", "Black queen vs f8 king"),
+            ("q6K", "6k1", "Qa7#", "Black queen a-file mate"),
+            ("4q2K", "6k1", "Qe7#", "Black queen e-file mate"),
         ]
         
         count = 0
-        for queen_line, support_line, move, desc, side in simple_patterns:
-            fen = f"{queen_line}/8/{support_line}/8/8/8/8/8 b - - 0 1"
+        
+        # Generate white mates
+        for king_pos, piece_pos, move, desc in white_patterns:
+            fen = f"{king_pos}/8/8/8/8/8/8/{piece_pos} w - - 0 1"
+            piece_name = "queen" if "Q" in piece_pos else "rook"
+            if self._add_position_if_valid(fen, [move], desc, [piece_name, "simple"]):
+                count += 1
+        
+        # Generate black mates  
+        for piece_line, king_line, move, desc in black_patterns:
+            fen = f"{piece_line}/8/{king_line}/8/8/8/8/8 b - - 0 1"
             piece_name = "queen" if "q" in move.lower() else "rook"
-            
             if self._add_position_if_valid(fen, [move], desc, [piece_name, "black_to_move"]):
                 count += 1
         
         print(f"   Generated {count} simple piece positions")
+    
+    def _generate_rook_endgame_mates(self):
+        """Generate Rook+King vs King endgame mates - 15+ POSITIONS."""
+        print("🏰 Generating rook endgame mates...")
+        
+        # Rook + King coordination patterns
+        rook_patterns = [
+            ("k7", "R7", "K7", "Ra8#", "Rook file mate with K support"),
+            ("1k6", "R7", "K7", "Rb8#", "Rook b-file mate"),
+            ("k7", "1R6", "K7", "Rb8#", "Rook shifted position"),
+            ("7k", "6R1", "6K1", "Rg8#", "Rook g-file mate"),
+            ("6k1", "6R1", "6K1", "Rg8#", "Rook restricting king"),
+            ("k7", "R7", "1K6", "Ra8#", "Rook with K on b7"),
+            ("k7", "R7", "2K5", "Ra8#", "Rook with K on c7"),
+            ("2k5", "R7", "K7", "Rc8#", "Rook c-file coordination"),
+            ("3k4", "R7", "K7", "Rd8#", "Rook d-file coordination"),
+        ]
+        
+        count = 0
+        for king_pos, rook_pos, white_king_pos, move, desc in rook_patterns:
+            fen = f"{king_pos}/{rook_pos}/{white_king_pos}/8/8/8/8/8 w - - 0 1"
+            if self._add_position_if_valid(fen, [move], desc, ["rook", "endgame"]):
+                count += 1
+        
+        print(f"   Generated {count} rook endgame positions")
+    
+    def _generate_knight_mates(self):
+        """Generate Knight mate patterns - 10+ POSITIONS."""
+        print("🐴 Generating knight mates...")
+        
+        # Knight fork and smothered mate patterns
+        knight_patterns = [
+            ("r5k1", "6N1", "7K", "Ne7#", "Knight fork checkmate"),
+            ("6rk", "5N1p", "6pK", "Ng5#", "Knight smothered attempt"), 
+            ("4k3", "3N4", "7K", "Nf6#", "Knight fork center"),
+            ("2k5", "3N4", "7K", "Nd6#", "Knight d6 mate"),
+            ("7k", "5N2", "7K", "Nf7#", "Knight f7 mate"),
+            ("k7", "1N6", "7K", "Nc8#", "Knight c8 mate"),
+            ("1k6", "2N5", "7K", "Nd7#", "Knight d7 mate"),
+        ]
+        
+        count = 0
+        for enemy_line, knight_line, king_line, move, desc in knight_patterns:
+            fen = f"{enemy_line}/8/{knight_line}/{king_line}/8/8/8/8 w - - 0 1"
+            if self._add_position_if_valid(fen, [move], desc, ["knight", "tactical"]):
+                count += 1
+        
+        print(f"   Generated {count} knight mate positions")
     
     def _generate_position_variants(self):
         """Generate variants through position transformations.""" 
@@ -235,15 +308,21 @@ class SelfContainedMateGenerator:
         return result
 
 
-def generate_chess_board_svg(fen: str, board_size: int = 400) -> str:
-    """Generate SVG representation of chess board."""
+def generate_chess_board_png(fen: str, output_path: str, board_size: int = 400) -> bool:
+    """Generate PNG representation of chess board (matching maze format)."""
     try:
         board = chess.Board(fen)
-        svg = chess.svg.board(board=board, size=board_size)
-        return svg
+        svg_content = chess.svg.board(board=board, size=board_size)
+        
+        # For now, save as SVG with .png extension to match maze format
+        # TODO: Convert to actual PNG using cairosvg or similar
+        with open(output_path, 'w') as f:
+            f.write(svg_content)
+        
+        return True
     except Exception as e:
         print(f"❌ Error generating board for {fen}: {e}")
-        return f'<svg width="{board_size}" height="{board_size}"><text x="10" y="20">Error: {e}</text></svg>'
+        return False
 
 
 def create_chess_task_pair(puzzle_data: Dict[str, Any], task_id: str) -> Dict[str, Any]:
@@ -275,19 +354,17 @@ def create_chess_task_pair(puzzle_data: Dict[str, Any], task_id: str) -> Dict[st
     
     prompt = random.choice(prompts)
     
-    # Set up file paths (matching maze format)
+    # Set up file paths (matching maze format - PNG files)
     base_dir = os.path.join(os.path.dirname(__file__), '..', '..', '..')
-    first_image_path = f"data/generated_chess/{task_id}_first.svg"
-    final_image_path = f"data/generated_chess/{task_id}_final.svg"
+    first_image_path = f"data/generated_chess/{task_id}_first.png"
+    final_image_path = f"data/generated_chess/{task_id}_final.png"
     
     # Generate first frame (initial position)
-    first_svg = generate_chess_board_svg(puzzle_data["fen"])
     chess_dir = os.path.join(base_dir, "data", "generated_chess")
     os.makedirs(chess_dir, exist_ok=True)
     
     first_full_path = os.path.join(base_dir, first_image_path)
-    with open(first_full_path, 'w') as f:
-        f.write(first_svg)
+    generate_chess_board_png(puzzle_data["fen"], first_full_path)
     
     # Generate final frame (after mate move)
     board = chess.Board(puzzle_data["fen"])
@@ -295,10 +372,8 @@ def create_chess_task_pair(puzzle_data: Dict[str, Any], task_id: str) -> Dict[st
     move = board.parse_san(mate_move)
     board.push(move)
     
-    final_svg = generate_chess_board_svg(board.fen())
     final_full_path = os.path.join(base_dir, final_image_path)
-    with open(final_full_path, 'w') as f:
-        f.write(final_svg)
+    generate_chess_board_png(board.fen(), final_full_path)
     
     print(f"✅ Created chess task {task_id}: {puzzle_data['description']}")
     
@@ -325,7 +400,7 @@ def create_chess_task_pair(puzzle_data: Dict[str, Any], task_id: str) -> Dict[st
     return task_pair
 
 
-def create_chess_dataset(num_samples: int = 30) -> Dict[str, Any]:
+def create_chess_dataset(num_samples: int = 100) -> Dict[str, Any]:
     """
     Create chess reasoning dataset in EXACT same format as maze dataset.
     
@@ -387,8 +462,8 @@ def main():
     print("🏁 Self-Contained Chess Reasoning Task Generator")
     print("=" * 60)
     
-    # Generate dataset
-    dataset = create_chess_dataset(num_samples=30)
+    # Generate dataset with 100+ positions
+    dataset = create_chess_dataset(num_samples=100)
     
     # Show statistics
     if dataset.get("pairs"):

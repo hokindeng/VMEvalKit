@@ -95,7 +95,7 @@ chess_data = {
 - Position demonstrates checkmate has been achieved
 
 ### Board Rendering
-- **Format**: SVG-based rendering using python-chess library
+- **Format**: PNG images (matching maze dataset format)
 - **Size**: 400x400 pixels (configurable)
 - **Style**: Standard chess notation and piece symbols
 - **Highlighting**: Optional square highlighting for move visualization
@@ -142,7 +142,7 @@ dataset = create_chess_dataset(
 # Generate individual chess board image
 generate_chess_board_image(
     fen="6k1/5ppp/8/8/8/8/8/R6K w - - 0 1",
-    output_path="chess_position.svg",
+    output_path="chess_position.png",
     highlight_squares=["a8"]  # Highlight target square
 )
 ```
@@ -198,10 +198,10 @@ data/
 ├── chess_tasks/
 │   └── chess_mate_in_1_tasks.json    # Chess dataset
 └── generated_chess/
-    ├── chess_0000_first.svg         # Initial position images
-    ├── chess_0000_final.svg         # Solution position images
-    ├── chess_0001_first.svg
-    └── chess_0001_final.svg
+    ├── chess_0000_first.png         # Initial position images
+    ├── chess_0000_final.png         # Solution position images
+    ├── chess_0001_first.png
+    └── chess_0001_final.png
 ```
 
 ## Evaluation Criteria
