@@ -1,7 +1,9 @@
 """
-WaveSpeedAI WAN 2.x Image-to-Video Generation Service.
+WaveSpeedAI Image-to-Video Generation Service.
 
-Supports text + image → video generation using WaveSpeedAI's WAN 2.1 and WAN 2.2 models.
+Supports text + image → video generation using WaveSpeedAI's platform:
+- Google Veo 3.1 models  
+- WaveSpeedAI WAN 2.1 and WAN 2.2 models
 """
 
 import os
@@ -17,8 +19,11 @@ from enum import Enum
 logger = logging.getLogger(__name__)
 
 
-class WANModel(str, Enum):
-    """WaveSpeedAI WAN model endpoints for I2V generation."""
+class WaveSpeedModel(str, Enum):
+    """WaveSpeedAI model endpoints for I2V generation."""
+    
+    # Google Veo Models
+    VEO_3_1_I2V = "google/veo3.1/image-to-video"
     
     # WAN 2.2 Models
     WAN_2_2_I2V_480P = "wan-2.2/i2v-480p"
@@ -41,17 +46,20 @@ class WANModel(str, Enum):
     WAN_2_1_I2V_720P_ULTRA_FAST = "wan-2.1/i2v-720p-ultra-fast"
     WAN_2_1_I2V_720P_LORA = "wan-2.1/i2v-720p-lora"
     WAN_2_1_I2V_720P_LORA_ULTRA_FAST = "wan-2.1/i2v-720p-lora-ultra-fast"
+    
+# Keep backward compatibility
+WANModel = WaveSpeedModel
 
 
 class WaveSpeedService:
-    """Service for image-to-video generation using WaveSpeedAI WAN models."""
+    """Service for image-to-video generation using WaveSpeedAI models (WAN and Veo)."""
     
-    def __init__(self, model: str = WANModel.WAN_2_2_I2V_720P):
+    def __init__(self, model: str = WaveSpeedModel.WAN_2_2_I2V_720P):
         """
         Initialize WaveSpeed service.
         
         Args:
-            model: WAN model variant to use
+            model: Model variant to use (WAN or Veo)
         """
         self.api_key = os.getenv("WAVESPEED_API_KEY")
         if not self.api_key:
@@ -71,7 +79,13 @@ class WaveSpeedService:
         seed: int = -1,
         output_path: Optional[Path] = None,
         poll_timeout_s: float = 300.0,
-        poll_interval_s: float = 2.0
+        poll_interval_s: float = 2.0,
+        # Veo 3.1 specific parameters
+        aspect_ratio: Optional[str] = None,
+        duration: Optional[float] = None,
+        resolution: Optional[str] = None,
+        generate_audio: Optional[bool] = None,
+        negative_prompt: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Generate video from text prompt and image.
@@ -83,6 +97,11 @@ class WaveSpeedService:
             output_path: Optional path to save video (if not provided, returns URL)
             poll_timeout_s: Maximum time to wait for completion
             poll_interval_s: Time between polling attempts
+            aspect_ratio: Video aspect ratio (Veo 3.1 only)
+            duration: Video duration in seconds (Veo 3.1 only, up to 8s)
+            resolution: Output resolution e.g. "1080p", "720p" (Veo 3.1 only)
+            generate_audio: Whether to generate audio (Veo 3.1 only)
+            negative_prompt: Negative prompt to avoid certain content (Veo 3.1 only)
             
         Returns:
             Dictionary with generation results including video URL/path
@@ -91,7 +110,16 @@ class WaveSpeedService:
         image_b64 = self._encode_image(image_path)
         
         # Submit generation request
-        request_id = await self._submit_generation(prompt, image_b64, seed)
+        request_id = await self._submit_generation(
+            prompt=prompt,
+            image_b64=image_b64,
+            seed=seed,
+            aspect_ratio=aspect_ratio,
+            duration=duration,
+            resolution=resolution,
+            generate_audio=generate_audio,
+            negative_prompt=negative_prompt
+        )
         logger.info(f"WaveSpeed generation started. Request ID: {request_id}")
         
         # Poll for completion
@@ -109,6 +137,14 @@ class WaveSpeedService:
             "image_path": str(image_path),
             "seed": seed
         }
+        
+        # Add Veo 3.1 parameters to result if used
+        if self.model == WaveSpeedModel.VEO_3_1_I2V:
+            if aspect_ratio: result["aspect_ratio"] = aspect_ratio
+            if duration: result["duration"] = duration
+            if resolution: result["resolution"] = resolution
+            if generate_audio is not None: result["generate_audio"] = generate_audio
+            if negative_prompt: result["negative_prompt"] = negative_prompt
         
         # Download video if output path provided
         if output_path and result_url:
@@ -129,16 +165,44 @@ class WaveSpeedService:
         
         return base64.b64encode(image_data).decode("utf-8")
     
-    async def _submit_generation(self, prompt: str, image_b64: str, seed: int) -> str:
+    async def _submit_generation(
+        self,
+        prompt: str,
+        image_b64: str,
+        seed: int,
+        aspect_ratio: Optional[str] = None,
+        duration: Optional[float] = None,
+        resolution: Optional[str] = None,
+        generate_audio: Optional[bool] = None,
+        negative_prompt: Optional[str] = None
+    ) -> str:
         """Submit I2V generation request."""
-        # Build endpoint URL
-        submit_url = f"{self.base_url}/api/v3/wavespeed-ai/{self.model}"
+        # Build endpoint URL based on model type
+        if self.model == WaveSpeedModel.VEO_3_1_I2V:
+            # For Veo 3.1, use the specific model path
+            submit_url = f"{self.base_url}/api/v3/{self.model}"
+        else:
+            # For WAN models, use wavespeed-ai prefix
+            submit_url = f"{self.base_url}/api/v3/wavespeed-ai/{self.model}"
         
         payload = {
             "prompt": prompt,
             "image": image_b64,
             "seed": seed
         }
+        
+        # Add Veo 3.1 specific parameters if using that model
+        if self.model == WaveSpeedModel.VEO_3_1_I2V:
+            if aspect_ratio:
+                payload["aspect_ratio"] = aspect_ratio
+            if duration:
+                payload["duration"] = duration
+            if resolution:
+                payload["resolution"] = resolution
+            if generate_audio is not None:
+                payload["generate_audio"] = generate_audio
+            if negative_prompt:
+                payload["negative_prompt"] = negative_prompt
         
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
@@ -238,3 +302,58 @@ class WaveSpeedService:
                 f.write(response.content)
         
         return output_path
+
+
+class Veo31Service(WaveSpeedService):
+    """Convenience service class specifically for Google Veo 3.1 image-to-video generation."""
+    
+    def __init__(self):
+        """Initialize Veo 3.1 service."""
+        super().__init__(model=WaveSpeedModel.VEO_3_1_I2V)
+    
+    async def generate_video(
+        self,
+        prompt: str,
+        image_path: Union[str, Path],
+        seed: int = -1,
+        output_path: Optional[Path] = None,
+        poll_timeout_s: float = 300.0,
+        poll_interval_s: float = 2.0,
+        aspect_ratio: Optional[str] = None,
+        duration: Optional[float] = None,
+        resolution: Optional[str] = "1080p",  # Default to 1080p for Veo 3.1
+        generate_audio: bool = True,  # Default to generating audio
+        negative_prompt: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Generate video using Google Veo 3.1 model.
+        
+        Args:
+            prompt: Text description for video generation
+            image_path: Path to input image file
+            seed: Random seed for reproducibility (-1 for random)
+            output_path: Optional path to save video (if not provided, returns URL)
+            poll_timeout_s: Maximum time to wait for completion
+            poll_interval_s: Time between polling attempts
+            aspect_ratio: Video aspect ratio (e.g., "16:9", "9:16", "1:1")
+            duration: Video duration in seconds (up to 8 seconds)
+            resolution: Output resolution ("720p" or "1080p", defaults to "1080p")
+            generate_audio: Whether to generate audio (defaults to True)
+            negative_prompt: Negative prompt to avoid certain content
+            
+        Returns:
+            Dictionary with generation results including video URL/path
+        """
+        return await super().generate_video(
+            prompt=prompt,
+            image_path=image_path,
+            seed=seed,
+            output_path=output_path,
+            poll_timeout_s=poll_timeout_s,
+            poll_interval_s=poll_interval_s,
+            aspect_ratio=aspect_ratio,
+            duration=duration,
+            resolution=resolution,
+            generate_audio=generate_audio,
+            negative_prompt=negative_prompt
+        )

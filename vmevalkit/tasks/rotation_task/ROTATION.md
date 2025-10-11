@@ -57,6 +57,32 @@ A collection of rotation task pairs with metadata:
 }
 ```
 
+## Prompts
+
+### Simple and Clear Prompt Structure
+The prompts specify exact camera viewing angles to eliminate ambiguity:
+
+#### Template
+- "A {num_voxels}-block sculpture sits fixed on a table."
+- "First frame: Your camera is at viewing angle (elevation: {elev1}°, azimuth: {azim1}°)."
+- "Final frame: Your camera is at viewing angle (elevation: {elev2}°, azimuth: {azim2}°)."
+- "Create a smooth video transition as the camera moves between these viewing angles, showing how the sculpture appears from different perspectives."
+
+#### Example Prompts
+
+##### Example 1
+"A 4-block sculpture sits fixed on a table. First frame: Your camera is at viewing angle (elevation: 45°, azimuth: 0°). Final frame: Your camera is at viewing angle (elevation: 45°, azimuth: 90°). Create a smooth video transition as the camera moves between these viewing angles, showing how the sculpture appears from different perspectives."
+
+##### Example 2
+"A 5-block sculpture sits fixed on a table. First frame: Your camera is at viewing angle (elevation: 30°, azimuth: 45°). Final frame: Your camera is at viewing angle (elevation: 60°, azimuth: 45°). Create a smooth video transition as the camera moves between these viewing angles, showing how the sculpture appears from different perspectives."
+
+### Key Features
+1. **Clear Camera Angles**: Explicitly states these are camera viewing angles, not object positions
+2. **Fixed Object**: The sculpture stays fixed - only the camera moves around it
+3. **Exact Coordinates**: Precise elevation and azimuth angles for camera positions
+4. **Simple Task**: "Create a smooth video transition" between two camera angles
+5. **No Ambiguity**: Clear that the camera moves, not the sculpture
+
 ## Generation Algorithm
 
 ### 1. 3D Voxel Structure Creation

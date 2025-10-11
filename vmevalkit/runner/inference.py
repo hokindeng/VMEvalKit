@@ -4,6 +4,7 @@ VMEvalKit Inference Runner - Multi-Provider Video Generation
 Unified interface for 37+ text+image→video models across 9 major providers:
 - Luma Dream Machine (2 models)
 - Google Veo (3 models) 
+- Google Veo 3.1 via WaveSpeed (2 models)
 - WaveSpeed WAN 2.x (18 models)
 - Runway ML (3 models)
 - OpenAI Sora (2 models)
@@ -23,7 +24,7 @@ from datetime import datetime
 import json
 
 from ..models import (
-    LumaInference, VeoService, WaveSpeedService, RunwayService, SoraService,
+    LumaInference, VeoService, Veo31Service, WaveSpeedService, RunwayService, SoraService,
     LTXVideoWrapper, HunyuanVideoWrapper, VideoCrafterWrapper, DynamiCrafterWrapper
 )
 
@@ -112,6 +113,79 @@ class VeoWrapper:
             "prompt": text_prompt,
             "image_path": str(image_path),
             "metadata": metadata
+        }
+
+
+class Veo31Wrapper:
+    """
+    Wrapper for Veo31Service (Google Veo 3.1 via WaveSpeed) to match the LumaInference interface.
+    """
+    
+    def __init__(
+        self,
+        api_key: Optional[str] = None,  # Not used - uses WAVESPEED_API_KEY env var
+        **kwargs
+    ):
+        """Initialize Veo 3.1 wrapper."""
+        # Veo 3.1 uses WaveSpeed API key from environment
+        self.veo_service = Veo31Service()
+    
+    def generate(
+        self,
+        prompt: str,
+        image_path: Union[str, Path],
+        duration: float = 5.0,
+        output_dir: Union[str, Path] = "output",
+        **kwargs
+    ):
+        """
+        Generate video using Veo 3.1 (synchronous wrapper).
+        
+        Args:
+            prompt: Text description for video generation
+            image_path: Path to input image
+            duration: Video duration (up to 8 seconds for Veo 3.1)
+            output_dir: Directory to save output video
+            **kwargs: Additional parameters for Veo 3.1
+        """
+        # Create output path with timestamp
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_filename = f"veo31_{timestamp}.mp4"
+        output_path = output_dir / output_filename
+        
+        # Extract Veo 3.1 specific parameters
+        resolution = kwargs.get('resolution', '1080p')
+        aspect_ratio = kwargs.get('aspect_ratio', None)
+        generate_audio = kwargs.get('generate_audio', True)
+        negative_prompt = kwargs.get('negative_prompt', None)
+        seed = kwargs.get('seed', -1)
+        
+        # Run async function synchronously
+        result = asyncio.run(
+            self.veo_service.generate_video(
+                prompt=prompt,
+                image_path=image_path,
+                output_path=output_path,
+                duration=duration,
+                resolution=resolution,
+                aspect_ratio=aspect_ratio,
+                generate_audio=generate_audio,
+                negative_prompt=negative_prompt,
+                seed=seed,
+                poll_timeout_s=kwargs.get('poll_timeout_s', 300.0),
+                poll_interval_s=kwargs.get('poll_interval_s', 2.0)
+            )
+        )
+        
+        # Return path-like result for compatibility
+        return {
+            "video_path": result.get("video_path", str(output_path)),
+            "video_url": result.get("video_url"),
+            "model": "google/veo3.1/image-to-video",
+            **result
         }
 
 
@@ -566,6 +640,22 @@ OPENAI_SORA_MODELS = {
     }
 }
 
+# Google Veo 3.1 Models (via WaveSpeed)
+GOOGLE_VEO31_MODELS = {
+    "veo-3.1": {
+        "class": Veo31Wrapper,
+        "args": {},
+        "description": "Google Veo 3.1 - Native 1080p with audio generation (via WaveSpeed)",
+        "family": "Google Veo 3.1"
+    },
+    "veo-3.1-720p": {
+        "class": Veo31Wrapper,
+        "args": {"resolution": "720p"},
+        "description": "Google Veo 3.1 - 720p with audio generation (via WaveSpeed)",
+        "family": "Google Veo 3.1"
+    }
+}
+
 # ========================================
 # OPEN-SOURCE MODELS (SUBMODULES)  
 # ========================================
@@ -642,6 +732,7 @@ DYNAMICRAFTER_MODELS = {
 AVAILABLE_MODELS = {
     **LUMA_MODELS,
     **VEO_MODELS,
+    **GOOGLE_VEO31_MODELS,
     **WAVESPEED_WAN_22_MODELS,
     **WAVESPEED_WAN_21_MODELS,
     **RUNWAY_MODELS,
@@ -656,6 +747,7 @@ AVAILABLE_MODELS = {
 MODEL_FAMILIES = {
     "Luma Dream Machine": LUMA_MODELS,
     "Google Veo": VEO_MODELS,
+    "Google Veo 3.1": GOOGLE_VEO31_MODELS,
     "WaveSpeed WAN 2.2": WAVESPEED_WAN_22_MODELS,
     "WaveSpeed WAN 2.1": WAVESPEED_WAN_21_MODELS,
     "Runway ML": RUNWAY_MODELS,

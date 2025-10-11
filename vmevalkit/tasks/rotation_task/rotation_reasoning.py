@@ -541,19 +541,19 @@ def _process_and_save_image(temp_path: str, final_path: str, image_size: Tuple[i
 
 def generate_prompt(task_data: Dict[str, Any]) -> str:
     """Generate simplified text prompt for the mental rotation task."""
-    angle_diff = task_data["angle_difference"]
-    difficulty = task_data["difficulty"]
     num_voxels = task_data["num_voxels"]
     
-    # SIMPLIFIED: Use simpler language for easier tasks
-    base_prompt = f"Show the simple {num_voxels}-block structure rotating from the first view to the final view."
+    # Get the actual viewpoint positions
+    elev1, azim1 = task_data["first_view"]
+    elev2, azim2 = task_data["final_view"]
     
-    if angle_diff == 90:
-        return f"{base_prompt} This is a 90° rotation around a clear axis."
-    elif difficulty == "easy":
-        return f"{base_prompt} The rotation is a simple {angle_diff:.0f}° turn."
-    else:
-        return f"{base_prompt} Show the {angle_diff:.0f}° rotation transition."
+    # SIMPLE AND CLEAR: Specify exact camera/viewing angles
+    prompt = (f"A {num_voxels}-block sculpture sits fixed on a table. "
+              f"First frame: Your camera is at viewing angle (elevation: {elev1}°, azimuth: {azim1}°). "
+              f"Final frame: Your camera is at viewing angle (elevation: {elev2}°, azimuth: {azim2}°). "
+              f"Create a smooth video transition as the camera moves between these viewing angles, showing how the sculpture appears from different perspectives.")
+    
+    return prompt
 
 
 def create_task_pair(task_data: Dict[str, Any], task_id: str) -> Dict[str, Any]:

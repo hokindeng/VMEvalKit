@@ -129,10 +129,10 @@ class KnowWhatTaskGenerator:
             dir_path.mkdir(parents=True, exist_ok=True)
         
         self.prompts = [
-            "Move the blue star from start to the circle target.",
-            "In this {shape}-pattern maze, move the star to the circle.",
-            "Solve this {shape} maze by reaching the circle target (no path drawing).",
-            "Start at the blue star and finish at the circle marker.",
+            "Navigate the blue star through white corridors (avoiding black walls) from its starting position to reach the red circle target.",
+            "In this {shape}-pattern maze, guide the blue star through the white paths (black areas are walls) to reach the red circle.",
+            "Move the blue star through white corridors to the red circle in this {shape}-shaped maze (black cells are walls).",
+            "Guide the blue star from its start position to the red circle target. White cells are paths, black cells are walls.",
         ]
     
     
@@ -247,10 +247,10 @@ class IrregularTaskGenerator:
         self._create_icons()
         
         self.prompts = [
-            "Start at the green dot and end at the red flag (no path drawing).",
-            "Move the green dot from start to the red flag destination.",
-            "Show the green start marker at begin, then at the red flag in the final frame.",
-            "Reach the red flag with the green dot; keep markers visible in both frames.",
+            "Navigate the green dot through the maze corridors (avoiding walls) from its starting position to reach the red flag.",
+            "Guide the green dot through the open paths to the red flag destination. Walls block movement, corridors allow passage.",
+            "Move the green dot from its starting position through the maze paths to the red flag. Navigate only through corridors.",
+            "The green dot must reach the red flag by moving through open corridors. Maze walls cannot be crossed.",
         ]
     
     def _create_icons(self):
