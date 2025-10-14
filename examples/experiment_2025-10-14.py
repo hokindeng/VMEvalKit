@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """
-Pilot Experiment: Test 6 representative models on VMEvalKit v2.0 dataset with parallel execution.
+Pilot Experiment: Test 6 representative models on ALL human-approved VMEvalKit tasks with parallel execution.
 
-This script runs inference on 1 task pair from each task category (chess, maze, raven, rotation)
-using representative models from major families plus the new Veo 3.1:
+This script runs inference on ALL existing task pairs from each domain (chess, maze, raven, rotation)
+that have been approved by human curators (i.e., folders still exist).
+
+Models tested:
 - Luma Dream Machine: luma-ray-2
 - Google Veo 3.0: veo-3.0-generate  
 - Google Veo 3.1 (via WaveSpeed): veo-3.1-720p
@@ -11,7 +13,9 @@ using representative models from major families plus the new Veo 3.1:
 - OpenAI Sora: openai-sora-2
 - WaveSpeed WAN 2.2: wavespeed-wan-2.2-i2v-720p
 
-Total: 4 tasks × 6 models = 24 video generations (run in parallel)
+Total: ALL approved tasks × 6 models = comprehensive evaluation
+
+Human Curation: Only tasks with existing folders are processed (deleted folders = rejected tasks)
 
 Requirements:
 - All necessary API keys configured in environment
@@ -57,93 +61,95 @@ PILOT_MODELS = {
     "wavespeed-wan-2.2-i2v-720p": "WaveSpeed WAN 2.2",
 }
 
-# Number of tasks per category (reduced to 1 for quick testing)
-TASKS_PER_CATEGORY = 1
-
-# Task categories to test
-TASK_CATEGORIES = ["chess", "maze", "raven", "rotation"]
-
-# Dataset path
-DATASET_PATH = Path("data/questions/vmeval_dataset.json")
+# Questions directory path
+QUESTIONS_DIR = Path("data/questions")
 
 # Output directory
 OUTPUT_DIR = Path("data/outputs/pilot_experiment")
 
-# Fallback dataset for maze tasks (no longer needed - main dataset includes maze pairs)
-# MAZE_FALLBACK_PATH = Path("data/questions/maze_task/")  # Deprecated
+# Expected domains (for validation)
+EXPECTED_DOMAINS = ["chess", "maze", "raven", "rotation"]
 
 
 # ========================================
-# DATASET LOADING
+# FOLDER-BASED TASK DISCOVERY
 # ========================================
 
-def load_dataset(dataset_path: Path) -> Dict[str, Any]:
-    """Load the VMEvalKit dataset."""
-    with open(dataset_path, 'r') as f:
-        return json.load(f)
-
-
-def select_tasks_by_category(
-    dataset: Dict[str, Any], 
-    category: str, 
-    n_tasks: int = 10,
-    random_seed: int = 42
-) -> List[Dict[str, Any]]:
+def discover_all_tasks_from_folders(questions_dir: Path) -> Dict[str, List[Dict[str, Any]]]:
     """
-    Select n_tasks from a specific category.
+    Discover all human-approved tasks by scanning folder structure directly.
+    
+    Only tasks with existing folders are processed (deleted folders = rejected tasks).
+    Loads metadata from individual question_metadata.json files.
     
     Args:
-        dataset: Full dataset dictionary
-        category: Task category (chess, maze, raven, rotation)
-        n_tasks: Number of tasks to select
-        random_seed: Random seed for reproducibility
+        questions_dir: Path to questions directory
         
     Returns:
-        List of selected task pairs
+        Dictionary mapping domain to list of task dictionaries
     """
-    import random
-    random.seed(random_seed)
+    print(f"🔍 Discovering tasks from folder structure: {questions_dir}")
     
-    # Filter tasks by category
-    pairs = dataset.get("pairs", [])
+    tasks_by_domain = {}
+    total_tasks = 0
     
-    # Category detection based on id prefix
-    category_pairs = [
-        pair for pair in pairs 
-        if pair["id"].startswith(category)
-    ]
-
-    # No fallback needed - main dataset includes all task categories
-    # The dataset structure has been updated to include maze tasks in the main vmeval_dataset.json
-
-    print(f"Found {len(category_pairs)} tasks in category '{category}'")
+    # Scan each domain folder
+    for domain_dir in sorted(questions_dir.glob("*_task")):
+        if not domain_dir.is_dir():
+            continue
+            
+        domain = domain_dir.name.replace("_task", "")
+        domain_tasks = []
+        
+        print(f"   📁 Scanning {domain_dir.name}/")
+        
+        # Scan each question folder in this domain  
+        for question_dir in sorted(domain_dir.glob(f"{domain}_*")):
+            if not question_dir.is_dir():
+                continue
+                
+            task_id = question_dir.name
+            
+            # Check for required files
+            metadata_file = question_dir / "question_metadata.json"
+            prompt_file = question_dir / "prompt.txt"
+            first_image = question_dir / "first_frame.png"
+            final_image = question_dir / "final_frame.png"
+            
+            if not all([metadata_file.exists(), prompt_file.exists(), first_image.exists()]):
+                print(f"      ⚠️  Skipping {task_id}: Missing required files")
+                continue
+            
+            # Load metadata from question_metadata.json
+            with open(metadata_file, 'r') as f:
+                task_metadata = json.load(f)
+            
+            # Load prompt directly from prompt.txt
+            prompt_text = prompt_file.read_text().strip()
+            
+            # Create standardized task dictionary
+            task = {
+                "id": task_id,
+                "domain": domain,
+                "prompt": prompt_text,
+                "first_image_path": str(first_image),
+                "final_image_path": str(final_image) if final_image.exists() else None,
+                # Include original metadata
+                **task_metadata
+            }
+            
+            domain_tasks.append(task)
+            
+        print(f"      ✅ Found {len(domain_tasks)} approved tasks in {domain}")
+        tasks_by_domain[domain] = domain_tasks
+        total_tasks += len(domain_tasks)
     
-    # Select n_tasks randomly
-    if len(category_pairs) >= n_tasks:
-        selected = random.sample(category_pairs, n_tasks)
-    else:
-        print(f"⚠️  Warning: Only {len(category_pairs)} tasks available, using all")
-        selected = category_pairs
+    print(f"\n📊 Discovery Summary:")
+    print(f"   Total approved tasks: {total_tasks}")
+    for domain, tasks in tasks_by_domain.items():
+        print(f"   {domain.title()}: {len(tasks)} tasks")
     
-    return selected
-
-
-def get_pilot_tasks(dataset_path: Path) -> Dict[str, List[Dict[str, Any]]]:
-    """
-    Get all tasks for pilot experiment.
-    
-    Returns:
-        Dictionary mapping category to list of tasks
-    """
-    dataset = load_dataset(dataset_path)
-    
-    pilot_tasks = {}
-    for category in TASK_CATEGORIES:
-        tasks = select_tasks_by_category(dataset, category, TASKS_PER_CATEGORY)
-        pilot_tasks[category] = tasks
-        print(f"✅ Selected {len(tasks)} tasks from '{category}' category")
-    
-    return pilot_tasks
+    return tasks_by_domain
 
 
 # ========================================
@@ -284,17 +290,17 @@ def run_single_inference(
 
 
 def run_pilot_experiment(
-    tasks_by_category: Dict[str, List[Dict[str, Any]]],
+    tasks_by_domain: Dict[str, List[Dict[str, Any]]],
     models: Dict[str, str],
     output_dir: Path,
     skip_existing: bool = True,
     max_workers: int = 6  # Parallel workers (one per model)
 ) -> Dict[str, Any]:
     """
-    Run full pilot experiment with PARALLEL execution.
+    Run full pilot experiment with PARALLEL execution on ALL human-approved tasks.
     
     Args:
-        tasks_by_category: Dictionary mapping category to task lists
+        tasks_by_domain: Dictionary mapping domain to task lists
         models: Dictionary of model names to test
         output_dir: Base output directory
         skip_existing: Skip tasks that already have outputs
@@ -304,17 +310,21 @@ def run_pilot_experiment(
         Dictionary with all results and statistics
     """
     print("=" * 80)
-    print("🚀 VMEVAL KIT PILOT EXPERIMENT (PARALLEL EXECUTION)")
+    print("🚀 VMEVAL KIT COMPREHENSIVE EVALUATION (ALL APPROVED TASKS)")
     print("=" * 80)
     print(f"\n📊 Experiment Configuration:")
     print(f"   Models: {len(models)}")
-    print(f"   Categories: {len(tasks_by_category)}")
-    print(f"   Tasks per category: {TASKS_PER_CATEGORY}")
+    print(f"   Domains: {len(tasks_by_domain)}")
     print(f"   🔄 Parallel Workers: {max_workers}")
     
-    total_tasks = sum(len(tasks) for tasks in tasks_by_category.values())
+    # Calculate totals
+    total_tasks = sum(len(tasks) for tasks in tasks_by_domain.values())
     total_generations = total_tasks * len(models)
-    print(f"   Total tasks: {total_tasks}")
+    
+    print(f"\n📈 Task Distribution:")
+    for domain, tasks in tasks_by_domain.items():
+        print(f"   {domain.title()}: {len(tasks)} approved tasks")
+    print(f"   Total approved tasks: {total_tasks}")
     print(f"   Total generations: {total_generations}")
     print(f"\n📁 Output directory: {output_dir}")
     print(f"   Skip existing: {skip_existing}\n")
@@ -333,27 +343,27 @@ def run_pilot_experiment(
         "failed": 0,
         "skipped": 0,
         "by_model": {},
-        "by_category": {}
+        "by_domain": {}
     }
     stats_lock = threading.Lock()
     
     # Initialize statistics
     for model in models.keys():
         statistics["by_model"][model] = {"completed": 0, "failed": 0, "skipped": 0}
-    for category in tasks_by_category.keys():
-        statistics["by_category"][category] = {"completed": 0, "failed": 0, "skipped": 0}
+    for domain in tasks_by_domain.keys():
+        statistics["by_domain"][domain] = {"completed": 0, "failed": 0, "skipped": 0}
     
     experiment_start = datetime.now()
     
     # Create all inference jobs
     inference_jobs = []
-    for category, tasks in tasks_by_category.items():
+    for domain, tasks in tasks_by_domain.items():
         for task in tasks:
             for model_name in models.keys():
                 inference_jobs.append({
                     "model_name": model_name,
                     "task": task,
-                    "category": category
+                    "domain": domain
                 })
     
     print(f"📋 Created {len(inference_jobs)} inference jobs")
@@ -366,7 +376,7 @@ def run_pilot_experiment(
     def process_job(job: Dict[str, Any]) -> Dict[str, Any]:
         model_name = job["model_name"]
         task = job["task"]
-        category = job["category"]
+        domain = job["domain"]
         task_id = task["id"]
         
         # With new structure, check if inference folder already exists
@@ -377,7 +387,7 @@ def run_pilot_experiment(
             with stats_lock:
                 statistics["skipped"] += 1
                 statistics["by_model"][model_name]["skipped"] += 1
-                statistics["by_category"][category]["skipped"] += 1
+                statistics["by_domain"][domain]["skipped"] += 1
             return {
                 "task_id": task_id,
                 "model_name": model_name,
@@ -389,7 +399,7 @@ def run_pilot_experiment(
         result = run_single_inference(
             model_name=model_name,
             task=task,
-            category=category,
+            category=domain,  # Pass domain as category for backward compatibility
             output_dir=output_dir,
             runner=runner  # Pass the shared runner instance
         )
@@ -402,11 +412,11 @@ def run_pilot_experiment(
             if result["success"]:
                 statistics["completed"] += 1
                 statistics["by_model"][model_name]["completed"] += 1
-                statistics["by_category"][category]["completed"] += 1
+                statistics["by_domain"][domain]["completed"] += 1
             else:
                 statistics["failed"] += 1
                 statistics["by_model"][model_name]["failed"] += 1
-                statistics["by_category"][category]["failed"] += 1
+                statistics["by_domain"][domain]["failed"] += 1
             
             # Save intermediate results periodically
             if (statistics["completed"] + statistics["failed"]) % 5 == 0:
@@ -434,7 +444,7 @@ def run_pilot_experiment(
                 with stats_lock:
                     statistics["failed"] += 1
                     statistics["by_model"][job["model_name"]]["failed"] += 1
-                    statistics["by_category"][job["category"]]["failed"] += 1
+                    statistics["by_domain"][job["domain"]]["failed"] += 1
     
     experiment_end = datetime.now()
     duration = (experiment_end - experiment_start).total_seconds()
@@ -519,10 +529,10 @@ def generate_summary_report(
             f.write(f"  Skipped: {stats['skipped']}\n")
         
         f.write("\n" + "=" * 80 + "\n")
-        f.write("RESULTS BY TASK CATEGORY\n")
+        f.write("RESULTS BY DOMAIN\n")
         f.write("=" * 80 + "\n")
-        for category, stats in statistics['by_category'].items():
-            f.write(f"\n{category.upper()}:\n")
+        for domain, stats in statistics['by_domain'].items():
+            f.write(f"\n{domain.upper()}:\n")
             f.write(f"  Completed: {stats['completed']}\n")
             f.write(f"  Failed: {stats['failed']}\n")
             f.write(f"  Skipped: {stats['skipped']}\n")
@@ -546,16 +556,16 @@ def format_duration(seconds: float) -> str:
 
 def main():
     """Main execution function."""
-    print("🔍 Loading VMEvalKit dataset...")
+    print("🔍 Discovering human-approved tasks from folder structure...")
     
-    # Check if dataset exists
-    if not DATASET_PATH.exists():
-        print(f"❌ Dataset not found at: {DATASET_PATH}")
-        print("   Please ensure the dataset is available.")
+    # Check if questions directory exists
+    if not QUESTIONS_DIR.exists():
+        print(f"❌ Questions directory not found at: {QUESTIONS_DIR}")
+        print("   Please ensure the questions directory exists with task folders.")
         sys.exit(1)
     
-    # Load and select tasks
-    tasks_by_category = get_pilot_tasks(DATASET_PATH)
+    # Discover all approved tasks from folders
+    tasks_by_domain = discover_all_tasks_from_folders(QUESTIONS_DIR)
     
     # Verify models are available
     print(f"\n🔍 Verifying {len(PILOT_MODELS)} models for parallel testing...")
@@ -586,9 +596,14 @@ def main():
     print(f"\n{'=' * 80}")
     input("Press ENTER to start the pilot experiment (or Ctrl+C to cancel)...")
     
+    # Verify we found tasks
+    if not tasks_by_domain or sum(len(tasks) for tasks in tasks_by_domain.values()) == 0:
+        print("❌ No approved tasks found. Please check the questions directory structure.")
+        sys.exit(1)
+    
     # Run experiment
     experiment_results = run_pilot_experiment(
-        tasks_by_category=tasks_by_category,
+        tasks_by_domain=tasks_by_domain,
         models=PILOT_MODELS,
         output_dir=OUTPUT_DIR,
         skip_existing=True
@@ -612,17 +627,23 @@ def main():
     
     # Print final summary
     print(f"\n{'=' * 80}")
-    print("🎉 PILOT EXPERIMENT COMPLETE!")
+    print("🎉 COMPREHENSIVE EVALUATION COMPLETE!")
     print(f"{'=' * 80}")
     stats = experiment_results["statistics"]
     print(f"\n📊 Final Statistics:")
     print(f"   Models tested: {len(PILOT_MODELS)}")
-    print(f"   Tasks per category: {TASKS_PER_CATEGORY}")
+    print(f"   Approved tasks processed: {stats['total_tasks']}")
     print(f"   Total generations: {stats['total_generations']}")
     print(f"   Completed: {stats['completed']} ({stats['completed']/max(stats['total_generations'],1)*100:.1f}%)")
     print(f"   Failed: {stats['failed']} ({stats['failed']/max(stats['total_generations'],1)*100:.1f}%)")
     print(f"   Skipped: {stats['skipped']} ({stats['skipped']/max(stats['total_generations'],1)*100:.1f}%)")
     print(f"   ⏱️ Duration: {stats['duration_formatted']}")
+    
+    print(f"\n🎯 Results by Domain:")
+    for domain, domain_stats in stats['by_domain'].items():
+        domain_total = domain_stats['completed'] + domain_stats['failed'] + domain_stats['skipped']
+        print(f"   {domain.title()}: {domain_stats['completed']}/{domain_total} completed")
+    
     print(f"\n📁 All outputs saved to: {OUTPUT_DIR}")
     print(f"{'=' * 80}\n")
 
@@ -638,4 +659,3 @@ if __name__ == "__main__":
         print(f"   {str(e)}")
         traceback.print_exc()
         sys.exit(1)
-
