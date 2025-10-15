@@ -26,6 +26,12 @@ import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import cv2
 
+# Standardized prompts for maze tasks (can add variations for experiments)
+PROMPTS = [
+    "Move the green dot from its starting position through the maze paths to the red flag. Navigate only through open spaces (white).",  # Standard prompt
+    # Future variations can be added here for prompt experiments
+]
+
 
 @dataclass
 class MazeTaskPair:
@@ -121,12 +127,8 @@ class MazeTaskGenerator:
         
         self._create_icons()
         
-        self.prompts = [
-            "Move the green dot to the red flag. White=open space; black=walls.",
-            "Guide the green dot through the open paths to the red flag destination. Walls block movement, white corridors allow passage.",
-            "Move the green dot from its starting position through the maze paths to the red flag. Navigate only through open spaces (white).",
-            "The green dot must reach the red flag by moving through open white spaces. Maze walls (black) cannot be crossed.",
-        ]
+        # Use standardized prompt from PROMPTS list
+        self.prompt = PROMPTS[0]
     
     def _create_icons(self):
         """Create simple icons programmatically (no external files needed)."""
@@ -248,7 +250,7 @@ class MazeTaskGenerator:
         final_path = Path(self.temp_dir) / f"{pair_id}_final.png"
         self.render_maze(solved_maze, final_path, show_solution=True)
         
-        prompt = random.choice(self.prompts)
+        prompt = PROMPTS[0]  # Use standardized prompt
         
         return MazeTaskPair(
             id=pair_id,

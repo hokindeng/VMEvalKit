@@ -103,23 +103,13 @@ chess_data = {
 
 ## Prompts
 
-### Basic Prompts
-- "White to move. Find checkmate in one move."
-- "Black can deliver checkmate in one move. Show the winning move."
-- "It's white's turn. Demonstrate the checkmate in one move."
-- "White to play and mate in 1. Show the solution."
+### Standardized Prompt
+The chess task uses a single standardized prompt format:
 
-### Pattern-Specific Prompts
-- "White to move. Find the back-rank mate." (for back-rank patterns)
-- "Deliver back-rank checkmate with white."
-- "Use the queen to deliver mate." (for queen tactics)
-- "Queen delivers mate in one - show the move."
-- "Use the rook to deliver checkmate." (for rook patterns)
+- **White to move**: "White can deliver checkmate in one move. Show the winning move."
+- **Black to move**: "Black can deliver checkmate in one move. Show the winning move."
 
-### Difficulty-Based Selection
-- **Easy**: Basic prompts focusing on simple instruction
-- **Medium**: Mix of basic and pattern-specific prompts
-- **Hard**: Emphasis on pattern-specific prompts requiring tactical knowledge
+The system automatically selects "White" or "Black" based on whose turn it is in the position.
 
 ## Usage
 

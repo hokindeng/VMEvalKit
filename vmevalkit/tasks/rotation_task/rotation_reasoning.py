@@ -8,7 +8,7 @@ how these structures appear when the camera rotates horizontally around them.
 
 The task uses:
 - Tilted camera views (20-40° elevation) for clear 3D perspective
-- Horizontal-only rotations with exactly 90° azimuth change for smooth transitions
+- Horizontal-only rotations with exactly 180° azimuth change for smooth transitions
 - 8-15 voxel structures for challenging but manageable complexity
 
 The task evaluates a model's ability to:
@@ -53,6 +53,16 @@ FIGURE_SIZE = (8, 8)     # Matplotlib figure size for rendering
 
 Voxel = Tuple[int, int, int]
 
+# Standardized prompts for rotation tasks (can add variations for experiments)
+PROMPTS = [
+    # Standard prompt with placeholders for dynamic content
+    "A {num_voxels}-block sculpture sits fixed on a table. "
+    "First frame: Your camera is tilted at {elev1}° elevation, viewing from {azim1}° azimuth. "
+    "Final frame: Your camera remains at {elev2}° elevation, but rotates horizontally to {azim2}° azimuth. This is a 180-degree rotation "
+    "Create a smooth video showing the camera's horizontal rotation around the sculpture, and try to maintain the tilted viewing angle throughout.",
+    # Future variations can be added here for prompt experiments
+]
+
 
 class RotationGenerator:
     """Self-contained 3D voxel mental rotation task generator."""
@@ -61,8 +71,8 @@ class RotationGenerator:
         self.generated_positions = []
         
     def generate_tasks(self, num_tasks: int = 50) -> List[Dict[str, Any]]:
-        """Generate 3D mental rotation tasks with tilted views and 90° horizontal rotations."""
-        print(f"🎯 Generating {num_tasks} 3D mental rotation tasks (8-15 voxels, 90° horizontal rotations)...")
+        """Generate 3D mental rotation tasks with tilted views and 180° horizontal rotations."""
+        print(f"🎯 Generating {num_tasks} 3D mental rotation tasks (8-15 voxels, 180° horizontal rotations)...")
         
         if not HAS_DEPENDENCIES:
             raise ImportError("NumPy, matplotlib, and PIL are required for rotation tasks")
@@ -98,8 +108,8 @@ class RotationGenerator:
                 
                 # Generate horizontal rotation (same elevation, different azimuth)
                 azim1 = random.randint(0, 359)
-                # Enforce exactly 90 degrees azimuth change
-                rotation_amount = 90
+                # Enforce exactly 180 degrees azimuth change
+                rotation_amount = 180
                 azim2 = (azim1 + rotation_amount) % 360
                 
                 elev1, elev2 = tilted_elevation, tilted_elevation  # Same elevation (horizontal rotation)
@@ -364,7 +374,7 @@ class RotationGenerator:
             complexity_score += 1
         
         # Factor in rotation angle
-        if angle_diff == 90:  # Axis-aligned rotations are easier to visualize
+        if angle_diff == 180:  # 180-degree rotations show opposite views
             pass  # No complexity increase
         elif angle_diff > 60:
             complexity_score += 2
@@ -535,11 +545,14 @@ def generate_prompt(task_data: Dict[str, Any]) -> str:
     if rotation_amount > 180:
         rotation_amount = 360 - rotation_amount
     
-    # Specify exact camera/viewing angles
-    prompt = (f"A {num_voxels}-block sculpture sits fixed on a table. "
-              f"First frame: Your camera is tilted at {elev1}° elevation, viewing from {azim1}° azimuth. "
-              f"Final frame: Your camera remains at {elev2}° elevation, but rotates horizontally to {azim2}° azimuth. "
-              f"Create a smooth video showing the camera's horizontal rotation around the sculpture, maintaining the tilted viewing angle throughout.")
+    # Use standardized prompt template from PROMPTS list
+    prompt = PROMPTS[0].format(
+        num_voxels=num_voxels,
+        elev1=elev1,
+        azim1=azim1,
+        elev2=elev2,
+        azim2=azim2
+    )
     
     return prompt
 
@@ -579,9 +592,9 @@ def create_task_pair(task_data: Dict[str, Any], task_id: str) -> Dict[str, Any]:
 
 
 def create_dataset(num_samples: int = 50) -> Dict[str, Any]:
-    """Create mental rotation dataset with tilted views and 90° horizontal rotations."""
+    """Create mental rotation dataset with tilted views and 180° horizontal rotations."""
     
-    print(f"🎯 Creating 3D mental rotation dataset with {num_samples} samples (90° horizontal rotations)...")
+    print(f"🎯 Creating 3D mental rotation dataset with {num_samples} samples (180° horizontal rotations)...")
     
     # Generate tasks
     generator = RotationGenerator()
@@ -598,7 +611,7 @@ def create_dataset(num_samples: int = 50) -> Dict[str, Any]:
     # Create dataset
     dataset = {
         "name": "rotation_tasks",
-        "description": f"3D mental rotation tasks with tilted views (20-40° elevation) and 90° horizontal rotations for video model evaluation ({len(pairs)} pairs)",
+        "description": f"3D mental rotation tasks with tilted views (20-40° elevation) and 180° horizontal rotations for video model evaluation ({len(pairs)} pairs)",
         "pairs": pairs
     }
     

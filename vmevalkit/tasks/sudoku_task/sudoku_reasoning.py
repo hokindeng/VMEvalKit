@@ -17,6 +17,12 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
+# Standardized prompts for Sudoku tasks (can add variations for experiments)
+PROMPTS = [
+    "Solve this 3x3 Sudoku puzzle. Fill in all the empty cells following Sudoku rules: each row and column must contain the digits 1, 2, and 3 exactly once. Show the complete solution.",  # Standard prompt
+    # Future variations can be added here for prompt experiments
+]
+
 
 @dataclass
 class SudokuTaskPair:
@@ -164,13 +170,14 @@ class Simple3x3SudokuGenerator:
         puzzle = solution.copy()
         
         # Difficulty levels for 3x3 (out of 9 total positions)
+        # User requested only 1 missing number for all difficulties
         difficulty_map = {
             0: (1, 1),   # Easy: remove 1 number (leave 8)
-            1: (4, 5),   # Medium: remove 4-5 numbers (leave 4-5) 
-            2: (6, 7)    # Hard: remove 6-7 numbers (leave 2-3)
+            1: (1, 1),   # Medium: remove 1 number (leave 8) 
+            2: (1, 1)    # Hard: remove 1 number (leave 8)
         }
         
-        min_remove, max_remove = difficulty_map.get(difficulty_level, (4, 5))
+        min_remove, max_remove = difficulty_map.get(difficulty_level, (1, 1))
         num_to_remove = random.randint(min_remove, max_remove)
         
         positions = list(range(9))
@@ -270,7 +277,8 @@ class SudokuTaskGenerator:
         difficulty_names = ["easy", "medium", "hard"]
         difficulty_name = difficulty_names[min(difficulty, 2)]
         
-        prompt = f"Solve this {difficulty_name} 3x3 Sudoku puzzle. Fill in all the empty cells following Sudoku rules: each row and column must contain the digits 1, 2, and 3 exactly once. Show the complete solution."
+        # Use standardized prompt template from PROMPTS list
+        prompt = PROMPTS[0].format(difficulty=difficulty_name)
         
         # Create task pair (return temp paths that will be moved by create_dataset.py)
         task_pair = SudokuTaskPair(
@@ -309,7 +317,7 @@ class SudokuTaskGenerator:
         
         for i in range(num_samples):
             difficulty = random.choice(difficulties)
-            task_id = f"sudoku_3x3_{i:04d}"
+            task_id = f"sudoku_{i:04d}"
             
             try:
                 task = self.generate_single_task(task_id, difficulty, output_dir)
@@ -352,7 +360,7 @@ class SudokuTaskGenerator:
         }
         
         # Save dataset
-        dataset_path = output_dir / "sudoku_3x3_dataset.json"
+        dataset_path = output_dir / "sudoku_dataset.json"
         with open(dataset_path, 'w') as f:
             json.dump(dataset_dict, f, indent=2)
         print(f"💾 Saved dataset to {dataset_path}")

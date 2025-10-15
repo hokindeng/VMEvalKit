@@ -44,10 +44,16 @@ class MazeTaskPair:
 
 ## Prompts
 
-Example prompts for mazes:
-- "Navigate the green dot through the maze corridors (avoiding walls) from its starting position to reach the red flag."
-- "Guide the green dot through the open paths to the red flag destination. Walls block movement, corridors allow passage."
-- "Move the green dot from its starting position through the maze paths to the red flag. Navigate only through corridors."
+### Standardized Prompt
+The maze task uses a single standardized prompt:
+
+"Move the green dot from its starting position through the maze paths to the red flag. Navigate only through open spaces (white)."
+
+This prompt clearly describes:
+- **Green dot**: The player/current position
+- **Red flag**: The target/goal
+- **White spaces**: Open paths where movement is allowed
+- **Black areas**: Walls that block movement
 
 ## Dataset Creation
 

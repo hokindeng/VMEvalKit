@@ -25,6 +25,12 @@ import chess.svg
 import io
 from PIL import Image, ImageDraw, ImageFont
 
+# Standardized prompts for chess tasks (can add variations for experiments)
+PROMPTS = [
+    "{side} can deliver checkmate in one move. Show the winning move.",  # Standard prompt
+    # Future variations can be added here for prompt experiments
+]
+
 
 class SelfContainedMateGenerator:
     """Self-contained mate-in-1 position generator - no external dependencies."""
@@ -406,22 +412,9 @@ def create_chess_task_pair(puzzle_data: Dict[str, Any], task_id: str) -> Dict[st
         Task pair dictionary matching maze format
     """
     
-    # Generate prompts
+    # Generate standardized prompt (using PROMPTS[0] as default)
     side = "White" if puzzle_data["side_to_move"] == "white" else "Black"
-    prompts = [
-        f"{side} to move. Find checkmate in one move.",
-        f"{side} can deliver checkmate in one move. Show the winning move.",
-        f"It's {side.lower()}'s turn. Demonstrate the checkmate in one move.",
-        f"{side} to play and mate in 1. Show the solution."
-    ]
-    
-    # Add pattern-specific prompts
-    if "back_rank" in puzzle_data.get("tags", []):
-        prompts.append(f"{side} to move. Find the back-rank mate.")
-    if "queen" in puzzle_data.get("tags", []):
-        prompts.append(f"Use the queen to deliver mate in one move.")
-    
-    prompt = random.choice(prompts)
+    prompt = PROMPTS[0].format(side=side)
     
     # Create temporary files that will be moved to per-question folders
     import tempfile

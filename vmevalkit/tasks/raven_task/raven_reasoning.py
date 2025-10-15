@@ -13,6 +13,12 @@ from datetime import datetime
 from .rpm_generator import RPMPuzzleGenerator
 from PIL import Image, ImageDraw, ImageFont
 
+# Standardized prompts for Raven tasks (can add variations for experiments)
+PROMPTS = [
+    "This is Raven's Progressive Matrices like task. Complete the missing pattern in this 3x3 matrix.",  # Standard prompt
+    # Future variations can be added here for prompt experiments
+]
+
 
 def create_dataset(num_samples: int = 50) -> Dict[str, Any]:
     """
@@ -59,13 +65,8 @@ def create_dataset(num_samples: int = 50) -> Dict[str, Any]:
         final_frame_path = os.path.join(temp_dir, f"{task_id}_final.png")
         final_frame.save(final_frame_path)
         
-        # Generate prompt
-        prompt = (
-            "Complete the pattern in this 3x3 matrix. The bottom-right cell is missing. "
-            "Analyze the relationships between cells in rows, columns, and diagonals to "
-            "determine what should appear in the empty cell. Show your reasoning process "
-            "as you identify the pattern and fill in the missing element."
-        )
+        # Generate prompt (using PROMPTS[0] as default)
+        prompt = PROMPTS[0]
         
         # Determine difficulty based on rule type
         difficulty_map = {
