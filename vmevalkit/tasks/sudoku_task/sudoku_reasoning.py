@@ -246,11 +246,9 @@ class SudokuTaskGenerator:
                            output_dir: Optional[Path] = None) -> SudokuTaskPair:
         """Generate a single 3x3 sudoku task pair."""
         
-        if output_dir is None:
-            output_dir = Path("data/questions/sudoku_task")
-        
-        output_dir = Path(output_dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
+        # Use temporary directory like other tasks
+        import tempfile
+        temp_dir = tempfile.mkdtemp()
         
         # Generate complete solution
         solution = self.sudoku_gen.generate_solved_sudoku()
@@ -261,9 +259,9 @@ class SudokuTaskGenerator:
         # Count given numbers
         num_given = sum(1 for x in puzzle if x is not None)
         
-        # Save images
-        puzzle_path = output_dir / f"{task_id}_puzzle.png"
-        solution_path = output_dir / f"{task_id}_solution.png"
+        # Save images in temp directory
+        puzzle_path = Path(temp_dir) / f"{task_id}_first.png"
+        solution_path = Path(temp_dir) / f"{task_id}_final.png"
         
         self.sudoku_gen.create_board_image(puzzle, puzzle_path)
         self.sudoku_gen.create_board_image(solution, solution_path)
@@ -274,7 +272,7 @@ class SudokuTaskGenerator:
         
         prompt = f"Solve this {difficulty_name} 3x3 Sudoku puzzle. Fill in all the empty cells following Sudoku rules: each row and column must contain the digits 1, 2, and 3 exactly once. Show the complete solution."
         
-        # Create task pair
+        # Create task pair (return temp paths that will be moved by create_dataset.py)
         task_pair = SudokuTaskPair(
             id=task_id,
             prompt=prompt,

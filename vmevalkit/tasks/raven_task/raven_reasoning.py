@@ -32,17 +32,15 @@ def create_dataset(num_samples: int = 50) -> Dict[str, Any]:
     
     print(f"🧩 Generating {num_samples} Raven Progressive Matrices puzzles...")
     
-    # Ensure output directory exists
-    base_dir = "data/questions/raven_task"
-    os.makedirs(base_dir, exist_ok=True)
-    
     pairs = []
     generator = RPMPuzzleGenerator(tile_size=150)  # Smaller tiles for 450x450 total
     
     for i in range(num_samples):
         task_id = f"raven_{i:04d}"
-        question_dir = os.path.join(base_dir, task_id)
-        os.makedirs(question_dir, exist_ok=True)
+        
+        # Use temporary directory like other tasks
+        import tempfile
+        temp_dir = tempfile.mkdtemp()
         
         # Generate puzzle with unique seed
         seed = 2025 + i
@@ -51,14 +49,14 @@ def create_dataset(num_samples: int = 50) -> Dict[str, Any]:
         # Generate the pattern matrix and metadata
         matrix, rule = generator.generate_pattern_matrix()
         
-        # Create and save first frame (incomplete matrix)
+        # Create and save first frame (incomplete matrix) in temp directory
         first_frame = generator.render_matrix(matrix, hide_last=True)
-        first_frame_path = os.path.join(question_dir, "first_frame.png")
+        first_frame_path = os.path.join(temp_dir, f"{task_id}_first.png")
         first_frame.save(first_frame_path)
         
-        # Create and save final frame (complete matrix)
+        # Create and save final frame (complete matrix) in temp directory
         final_frame = generator.render_matrix(matrix, hide_last=False)
-        final_frame_path = os.path.join(question_dir, "final_frame.png")
+        final_frame_path = os.path.join(temp_dir, f"{task_id}_final.png")
         final_frame.save(final_frame_path)
         
         # Generate prompt
@@ -68,11 +66,6 @@ def create_dataset(num_samples: int = 50) -> Dict[str, Any]:
             "determine what should appear in the empty cell. Show your reasoning process "
             "as you identify the pattern and fill in the missing element."
         )
-        
-        # Save prompt
-        prompt_path = os.path.join(question_dir, "prompt.txt")
-        with open(prompt_path, 'w') as f:
-            f.write(prompt)
         
         # Determine difficulty based on rule type
         difficulty_map = {
@@ -86,12 +79,12 @@ def create_dataset(num_samples: int = 50) -> Dict[str, Any]:
         rule_type = rule.split()[0].lower()
         difficulty = difficulty_map.get(rule_type, "medium")
         
-        # Create task pair metadata
+        # Create task pair metadata (return temp paths that will be moved by create_dataset.py)
         pair = {
             "id": task_id,
             "prompt": prompt,
-            "first_image_path": f"raven_task/{task_id}/first_frame.png",
-            "final_image_path": f"raven_task/{task_id}/final_frame.png",
+            "first_image_path": first_frame_path,  # temp path
+            "final_image_path": final_frame_path,  # temp path
             "domain": "raven",
             "task_category": "AbstractReasoning",
             "difficulty": difficulty,
@@ -103,11 +96,6 @@ def create_dataset(num_samples: int = 50) -> Dict[str, Any]:
             },
             "created_at": datetime.now().isoformat()
         }
-        
-        # Save question metadata
-        metadata_path = os.path.join(question_dir, "question_metadata.json")
-        with open(metadata_path, 'w') as f:
-            json.dump(pair, f, indent=2)
         
         pairs.append(pair)
         
