@@ -211,6 +211,11 @@ class VeoService:
             - video_bytes: bytes of the first video if inline; or downloaded from GCS if requested; else None
             - metadata: full response dict (including any GCS URIs)
         """
+        # Auto-detect best aspect ratio if image provided and using default aspect ratio
+        if image_path and aspect_ratio == "16:9":  # Only auto-detect if using default
+            with Image.open(image_path) as img:
+                aspect_ratio = self._determine_best_aspect_ratio(img.width, img.height, aspect_ratio)
+        
         self._validate_params(duration_seconds, aspect_ratio, resolution, sample_count)
 
         token = get_google_access_token()
@@ -323,6 +328,40 @@ class VeoService:
             raise ValueError('resolution must be "720p" or "1080p"')
         if not (1 <= sample_count <= 4):
             raise ValueError("sample_count must be between 1 and 4")
+
+    def _determine_best_aspect_ratio(self, image_width: int, image_height: int, preferred_ratio: Optional[str] = None) -> str:
+        """
+        Determine the best aspect ratio for VEO based on input image dimensions.
+        
+        Args:
+            image_width: Original image width
+            image_height: Original image height  
+            preferred_ratio: User-specified preferred ratio ("16:9" or "9:16")
+            
+        Returns:
+            Best aspect ratio ("16:9" or "9:16")
+        """
+        if preferred_ratio and preferred_ratio in ("16:9", "9:16"):
+            return preferred_ratio
+            
+        input_ratio = image_width / image_height
+        
+        # Special handling for square images (1:1)
+        # Default to landscape (16:9) for square images since it's more common for video
+        if 0.9 <= input_ratio <= 1.1:  # Close to square
+            best_ratio = "16:9"
+            logger.info(f"Square image detected ({image_width}×{image_height}) -> defaulting to landscape {best_ratio}")
+            return best_ratio
+        
+        # For non-square images, choose based on orientation
+        # If input is wider than tall (>1), use landscape; otherwise use portrait
+        if input_ratio > 1:
+            best_ratio = "16:9"  # Landscape
+        else:
+            best_ratio = "9:16"  # Portrait
+        
+        logger.info(f"Input aspect ratio {input_ratio:.3f} ({image_width}×{image_height}) -> Best VEO match: {best_ratio}")
+        return best_ratio
 
     def _pad_image_to_aspect_ratio(self, image: Image.Image, target_aspect_ratio: str) -> Image.Image:
         """
@@ -497,85 +536,3 @@ class VeoService:
         except Exception:
             msg = resp.text
         raise RuntimeError(f"Veo 3 API {phase} error [{resp.status_code}]: {msg}")
-
-
-# -----------------------------
-# CLI Example
-# -----------------------------
-# Usage:
-#   export GOOGLE_PROJECT_ID=your-project
-#   export GOOGLE_LOCATION=us-central1
-#   python -m vmevalkit.models.veo_inference --prompt "A gray mouse finds yellow cheese..." \
-#       --image_path starter.png --out ./outputs/veo_output.mp4 --duration 8 --ratio 16:9 --res 1080p
-#
-# Or write to GCS (no inline bytes):
-#   python -m vmevalkit.models.veo_inference --prompt "..." --image_path starter.png \
-#       --storage_uri gs://your-bucket/veo-outputs/ --no-download
-#
-if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser(description="Google Veo 3 — Text + Image → Video (Vertex AI)")
-    parser.add_argument("--prompt", required=True, help="Text description for the video.")
-    parser.add_argument("--image_path", default=None, help="Local PNG/JPEG to condition the video.")
-    parser.add_argument("--image_gcs_uri", default=None, help="GCS URI to an input image (gs://bucket/path.png).")
-
-    parser.add_argument("--duration", type=int, default=8, help="Duration seconds: 4, 6, or 8 (default: 8).")
-    parser.add_argument("--ratio", default="16:9", choices=["16:9", "9:16"], help="Aspect ratio.")
-    parser.add_argument("--res", default="1080p", choices=["720p", "1080p"], help="Resolution.")
-
-    parser.add_argument("--negative_prompt", default=None, help="Things to avoid.")
-    parser.add_argument("--seed", type=int, default=None, help="Random seed for repeatability.")
-    parser.add_argument("--samples", type=int, default=1, help="Number of samples (1–4).")
-    parser.add_argument("--no-enhance", dest="enhance", action="store_false", help="Disable prompt enhancement.")
-    parser.add_argument("--no-audio", dest="audio", action="store_false", help="Disable native audio generation.")
-    parser.add_argument("--person_generation", default=None, choices=["disallow", "allow_adult"], help="Person generation policy.")
-
-    parser.add_argument("--storage_uri", default=None, help="gs://bucket/prefix for outputs (server-side).")
-    parser.add_argument("--download", dest="download", action="store_true", help="If GCS is returned, try to download bytes.")
-    parser.add_argument("--no-download", dest="download", action="store_false")
-    parser.set_defaults(download=True)
-
-    parser.add_argument("--model", default="veo-3.0-generate-preview",
-                        choices=["veo-2.0-generate-001", "veo-3.0-generate-preview", "veo-3.0-fast-generate-preview"],
-                        help="Veo model variant.")
-
-    parser.add_argument("--out", default="./outputs/veo_output.mp4", help="Where to save video bytes if available.")
-    args = parser.parse_args()
-
-    async def _main():
-        svc = VeoService(model_id=args.model)
-        video_bytes, meta = await svc.generate_video(
-            prompt=args.prompt,
-            image_path=args.image_path,
-            image_gcs_uri=args.image_gcs_uri,
-            duration_seconds=args.duration,
-            aspect_ratio=args.ratio,
-            resolution=args.res,
-            negative_prompt=args.negative_prompt,
-            enhance_prompt=args.enhance,
-            generate_audio=args.audio,
-            sample_count=args.samples,
-            seed=args.seed,
-            person_generation=args.person_generation,
-            storage_uri=args.storage_uri,
-            download_from_gcs=args.download,
-        )
-
-        # Always write metadata for inspection
-        meta_path = Path(args.out).with_suffix(".json")
-        meta_path.parent.mkdir(parents=True, exist_ok=True)
-        meta_path.write_text(json.dumps(meta, indent=2))
-        logger.info(f"Wrote operation response metadata to {meta_path}")
-
-        if video_bytes:
-            await svc.save_video(video_bytes, Path(args.out))
-        else:
-            logger.info(
-                "No inline video bytes to save. "
-                "If you provided --storage_uri, check your GCS bucket for outputs."
-            )
-
-    asyncio.run(_main())
-
-

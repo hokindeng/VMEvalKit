@@ -103,23 +103,13 @@ chess_data = {
 
 ## Prompts
 
-### Basic Prompts
-- "White to move. Find checkmate in one move."
-- "Black can deliver checkmate in one move. Show the winning move."
-- "It's white's turn. Demonstrate the checkmate in one move."
-- "White to play and mate in 1. Show the solution."
+### Standardized Prompt
+The chess task uses a single standardized prompt format:
 
-### Pattern-Specific Prompts
-- "White to move. Find the back-rank mate." (for back-rank patterns)
-- "Deliver back-rank checkmate with white."
-- "Use the queen to deliver mate." (for queen tactics)
-- "Queen delivers mate in one - show the move."
-- "Use the rook to deliver checkmate." (for rook patterns)
+- **White to move**: "White can deliver checkmate in one move. Show the winning move."
+- **Black to move**: "Black can deliver checkmate in one move. Show the winning move."
 
-### Difficulty-Based Selection
-- **Easy**: Basic prompts focusing on simple instruction
-- **Medium**: Mix of basic and pattern-specific prompts
-- **Hard**: Emphasis on pattern-specific prompts requiring tactical knowledge
+The system automatically selects "White" or "Black" based on whose turn it is in the position.
 
 ## Usage
 
@@ -153,7 +143,7 @@ generate_chess_board_image(
 from vmevalkit.tasks.chess_task import ChessDataset
 
 # Load from JSON file
-dataset = ChessDataset.load("data/chess_tasks/chess_mate_in_1_tasks.json")
+dataset = ChessDataset.load("data/questions/chess_tasks/chess_mate_in_1_tasks.json")
 
 # Filter by difficulty
 easy_tasks = dataset.filter_by_difficulty("easy")
@@ -220,7 +210,7 @@ Video models are evaluated on their ability to:
 - **Legal Move Rate**: Percentage of positions where model plays legal moves  
 - **Pattern Recognition**: Success rate by pattern type (back-rank, corner, tactical)
 - **Video Quality**: Clarity and accuracy of piece movement demonstration
-- **Multiple Solution Handling**: Ability to find any correct mate (30% have multiple solutions)
+- **Multiple Solution Handling**: Ability to find any correct mate (some positions have multiple solutions)
 
 ### Advanced Metrics
 - **Difficulty Scaling**: Performance across easy/medium/hard positions
@@ -250,7 +240,7 @@ Video models are evaluated on their ability to:
 
 ## Position Collection
 
-The chess task system includes **213 verified mate-in-1 positions** generated through:
+The chess task system includes **100+ verified mate-in-1 positions** generated through:
 
 ### Generation Methods
 - **Template-Based**: Systematic variations of proven patterns
@@ -293,7 +283,7 @@ VALIDATION: ✅ Move is legal  ✅ Results in checkmate  ✅ Video shows movemen
 - Chess positions stored in standard FEN notation
 - Board images rendered as SVG (convertible to PNG if needed)
 - Move notation uses Standard Algebraic Notation (SAN)
-- Multiple solutions supported (63 positions have multiple correct answers)
+- Multiple solutions supported (various positions have multiple correct answers)
 - Both white and black to move positions included
 
 ### Model Requirements

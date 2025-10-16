@@ -1,200 +1,130 @@
-# Maze Reasoning Task Documentation
+# Maze Reasoning Tasks
 
-## Overview
+Video models need to demonstrate path-finding and spatial reasoning capabilities by navigating mazes.
 
-The Maze Reasoning Task evaluates video generation models' ability to demonstrate spatial reasoning and problem-solving by generating videos that show navigation from a start position to an end position in a maze. This task is part of VMEvalKit's reasoning evaluation suite.
+## Task Overview
 
-## Task Types
+Professional-style mazes with green dot and red flag markers.
 
-### 1. KnowWhat Tasks
-- **Description**: Algorithmic mazes with geometric patterns (squares, spirals, triangles, etc.)
-- **Visual Style**: Simple star and circle markers
-- **Markers**:
-  - 🔵 Blue star: Current position (moves from start to end)
-  - 🔴 Red circle: Target position (remains fixed)
-- **Patterns**: Square, Cross, Triangle, Spiral, C, U, Z, N shapes
-- **Sizes**: 5x5, 7x7, 9x9 grids
-
-### 2. Irregular Tasks
-- **Description**: Professional-style mazes with complex paths
-- **Visual Style**: Green dot and red flag markers
-- **Markers**:
-  - 🟢 Green dot: Current position (moves from start to end)
-  - 🚩 Red flag: Target position (remains fixed)
-- **Generation**: Kruskal's algorithm for maze generation
-- **Sizes**: 3x3 to 8x8 grids
+**Key Features:**
+- High-quality maze rendering
+- Green dot as current position
+- Red flag as target
+- Various difficulty levels based on maze size
 
 ## Data Structure
 
-### MazeTaskPair
-Each task consists of a pair of images and a text prompt:
+Each maze task follows this structure:
 
 ```python
 @dataclass
 class MazeTaskPair:
-    id: str                    # Unique identifier (e.g., "knowwhat_0001")
+    id: str                    # Unique identifier (e.g., "maze_0001")
     prompt: str                # Instructions for the video model
-    first_image_path: str      # Path to the puzzle image (start state)
-    final_image_path: str      # Path to the solution image (end state)
-    task_category: str         # "KnowWhat" or "Irregular"
-    maze_data: Dict[str, Any]  # Metadata including maze array
-    difficulty: str            # "easy", "medium", or "hard"
-    maze_size: Tuple[int, int] # Grid dimensions
-    start_pos: Tuple[int, int] # Starting coordinates
-    end_pos: Tuple[int, int]   # Ending coordinates
-    solution_length: Optional[int]  # Path length (for Irregular)
-    shape_type: str            # Shape pattern (for KnowWhat)
+    first_image_path: str     # Path to the puzzle image
+    final_image_path: str     # Path to the solution image
+    task_category: str         # "Maze"
+    maze_data: Dict           # Metadata about the maze
+    difficulty: str           # "easy", "medium", or "hard"
+    maze_size: Tuple[int, int]  # Grid dimensions
+    start_pos: Tuple[int, int]   # Starting position
+    end_pos: Tuple[int, int]     # Target position
+    solution_length: int         # Number of steps in solution
 ```
 
-### MazeDataset
-A collection of maze task pairs with metadata:
+## Visual Format
 
-```python
-@dataclass
-class MazeDataset:
-    name: str                  # Dataset identifier
-    description: str           # Human-readable description
-    pairs: List[MazeTaskPair]  # List of task pairs
-    metadata: Dict[str, Any]   # Additional information
-```
+**First Frame (Puzzle):**
+- Green dot at start position
+- Red flag at target position
 
-## Visual Representation
-
-### First Frame (Puzzle)
-- Shows the maze with markers at their starting positions
-- KnowWhat: Blue star at start, red circle at target
-- Irregular: Green dot at start, red flag at target
-
-### Final Frame (Solution)
-- Shows the completed state
-- KnowWhat: Blue star moved to target position (overlapping red circle)
-- Irregular: Green dot moved to flag position
-
-### Important: No Path Drawing
-The task explicitly avoids drawing solution paths. Only the current position marker moves between frames. This tests the model's ability to understand and demonstrate navigation without explicit path visualization.
+**Final Frame (Solution):**
+- Green dot moved to target position (overlapping red flag)
+- Red flag remains visible
 
 ## Prompts
 
-### KnowWhat Prompts
-- "Move the blue star from start to the circle target."
-- "In this {shape}-pattern maze, move the star to the circle."
-- "Solve this {shape} maze by reaching the circle target (no path drawing)."
-- "Start at the blue star and finish at the circle marker."
+### Standardized Prompt
+The maze task uses a single standardized prompt:
 
-### Irregular Prompts
-- "Start at the green dot and end at the red flag (no path drawing)."
-- "Move the green dot from start to the red flag destination."
-- "Show the green start marker at begin, then at the red flag in the final frame."
-- "Reach the red flag with the green dot; keep markers visible in both frames."
+"Move the green dot from its starting position through the maze paths to the red flag. Navigate only through open spaces (white)."
 
-## Usage
+This prompt clearly describes:
+- **Green dot**: The player/current position
+- **Red flag**: The target/goal
+- **White spaces**: Open paths where movement is allowed
+- **Black areas**: Walls that block movement
 
-### Generating Datasets
+## Dataset Creation
 
-```python
-from vmevalkit.tasks.maze_task import (
-    create_knowwhat_dataset,
-    create_irregular_dataset,
-    create_combined_dataset
-)
-
-# Generate individual datasets
-knowwhat_dataset = create_knowwhat_dataset(num_samples=20)
-irregular_dataset = create_irregular_dataset(num_samples=20)
-
-# Generate combined dataset
-combined_dataset = create_combined_dataset(
-    knowwhat_samples=15,
-    irregular_samples=15
-)
-```
-
-### Loading Existing Datasets
+### Quick Start
 
 ```python
-from vmevalkit.tasks.maze_task import MazeDataset
+from vmevalkit.tasks.maze_task import create_dataset
 
-# Load from JSON files
-dataset = MazeDataset.load("data/maze_tasks/combined_maze_tasks.json")
-
-# Filter by category
-knowwhat_only = dataset.filter_by_category("KnowWhat")
-irregular_only = dataset.filter_by_category("Irregular")
-
-# Access individual pairs
-for pair in dataset.pairs:
-    print(f"Task: {pair.id}")
-    print(f"Prompt: {pair.prompt}")
-    print(f"First image: {pair.first_image_path}")
-    print(f"Final image: {pair.final_image_path}")
+# Create maze dataset (standard interface)
+maze_dataset = create_dataset(num_samples=30)
 ```
 
-## File Structure
+### Filtering
 
-```
-data/
-├── maze_tasks/
-│   ├── knowwhat_tasks.json      # KnowWhat dataset
-│   ├── irregular_tasks.json     # Irregular dataset
-│   └── combined_maze_tasks.json # Combined dataset
-└── generated_mazes/
-    ├── knowwhat_0000_first.png  # KnowWhat puzzle images
-    ├── knowwhat_0000_final.png  # KnowWhat solution images
-    ├── irregular_0000_first.png # Irregular puzzle images
-    └── irregular_0000_final.png # Irregular solution images
+```python
+# Filter by difficulty
+easy_mazes = [p for p in dataset['pairs'] if p['difficulty'] == "easy"]
+
+# Filter by maze size
+small_mazes = [p for p in dataset['pairs'] if p['maze_size'][0] <= 5]
 ```
 
-## Evaluation Criteria
+## File Organization
 
-Video models are evaluated on their ability to:
+```
+data/questions/
+├── maze_task/
+│   ├── maze_tasks.json          # Complete dataset
+│   └── temp/                    # Temporary generation files
+└── maze_images/
+    ├── maze_0000_first.png      # Maze puzzle images
+    ├── maze_0000_final.png      # Maze solution images
+    └── ...
+```
 
-1. **Spatial Understanding**: Recognize the maze structure and valid paths
-2. **Marker Recognition**: Identify start (star/green dot) and target (circle/flag) positions
-3. **Movement Logic**: Generate smooth, logical movement from start to end
-4. **Constraint Adherence**: Respect maze walls and avoid invalid paths
-5. **Visual Consistency**: Maintain marker appearance and maze structure throughout
+## Technical Details
 
-## Difficulty Levels
+### Maze Generation
 
-### KnowWhat Difficulty
-- **Easy**: Small grids (5x5) with simple shapes (square, cross)
-- **Medium**: Medium grids (7x7) with moderate shapes (triangle, spiral)
-- **Hard**: Large grids (9x9) with complex shapes (Z, N patterns)
+Mazes use the Kruskal algorithm for generation:
 
-### Irregular Difficulty
-- **Easy**: Small grids (3x3, 4x4)
-- **Medium**: Medium grids (5x5, 6x6)
-- **Hard**: Large grids (7x7, 8x8)
+- **Algorithm**: Kruskal's minimum spanning tree
+- **Grid sizes**: 3x3 (simplified for easier evaluation)
+- **Rendering**: Professional maze visualization with matplotlib
+- **Markers**: 
+  - Green circle for current position
+  - Red flag for target
+  - Professional styling with borders and shadows
 
-## Implementation Details
+### Difficulty Levels
 
-### KnowWhat Maze Generation
+Based on maze grid size:
+- **Easy**: 3x3 grids (current simplified implementation)
+- **Medium**: Reserved for future expansion
+- **Hard**: Reserved for future expansion
 
-KnowWhat mazes use pre-generated maze files from the KnowWhat submodule to ensure reliability:
+## Best Practices
 
-- **Source**: `/submodules/KnowWhat/data/experiment_mazes/`
-- **Available mazes**: 
-  - 5x5: 5 mazes per shape (30 total)
-  - 7x7: 30 mazes per shape (180 total)
-  - Total: 210 pre-validated mazes
-- **Benefits**:
-  - Guaranteed validity (all mazes have solutions)
-  - Consistency with original KnowWhat experiments
-  - No generation failures
-  - Better performance (no on-the-fly generation)
+1. **Balanced Datasets**: Create datasets with varied difficulty levels
+2. **Validation**: Ensure all mazes have valid solutions
+3. **Consistency**: Use consistent visual styling across all mazes
+4. **Documentation**: Include metadata for analysis and filtering
 
-The implementation renders mazes directly from numpy arrays using matplotlib, avoiding complex format conversions.
+## Success Metrics
 
-### Irregular Maze Generation
-
-Irregular mazes are generated dynamically using:
-- **Algorithm**: Kruskal's algorithm via maze-dataset library
-- **Rendering**: Custom implementation with matplotlib
-- **Markers**: Programmatically drawn (no external icon files needed)
+- **Path validity**: Does the solution follow open corridors?
+- **Optimal path**: Is the solution the shortest possible path?
+- **Visual consistency**: Does the green dot properly reach the flag?
 
 ## Notes
 
-- All generated images use white backgrounds with black maze walls
-- Markers are designed to be visually distinct and easily recognizable
-- The task focuses on endpoint reasoning rather than path-following
-- KnowWhat mazes are pre-validated, ensuring 100% generation success rate
+- Mazes are generated dynamically with guaranteed solvability
+- Each maze has exactly one valid solution path
+- Visual rendering is optimized for clarity and consistency

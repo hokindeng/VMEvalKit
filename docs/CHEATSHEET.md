@@ -1,2 +1,0 @@
-```export PKG_CONFIG_PATH=/opt/homebrew/lib/pkgconfig:/opt/homebrew/opt/libffi/lib/pkgconfig
-export DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib```

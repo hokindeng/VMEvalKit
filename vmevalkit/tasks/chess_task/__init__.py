@@ -13,14 +13,14 @@ and action demonstration capabilities in video models.
 
 from .chess_reasoning import (
     SelfContainedMateGenerator,
-    create_chess_dataset,
+    create_dataset,
     create_chess_task_pair,
     generate_chess_board_png
 )
 
 __all__ = [
     'SelfContainedMateGenerator',
-    'create_chess_dataset', 
+    'create_dataset',
     'create_chess_task_pair',
     'generate_chess_board_png'
 ]

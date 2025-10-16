@@ -1,91 +1,99 @@
+#!/usr/bin/env python3
+"""Simple S3 sync for VMEvalKit data."""
+
 import os
 import sys
 import datetime
 from pathlib import Path
-from typing import Optional
-
 import boto3
 from botocore.exceptions import ClientError
 
 
-def get_s3_client():
-    session = boto3.session.Session(
+def sync_to_s3(data_dir: Path = None, date_prefix: str = None) -> str:
+    """
+    Sync data folder to S3.
+    
+    Args:
+        data_dir: Path to data directory (default: ./data)
+        date_prefix: Date folder (default: today's date YYYYMMDD)
+        
+    Returns:
+        S3 URI of uploaded data
+    """
+    # Defaults
+    if data_dir is None:
+        data_dir = Path(__file__).resolve().parent
+    
+    # S3 setup
+    bucket = os.getenv("S3_BUCKET", "vmevalkit")
+    date_folder = date_prefix or datetime.datetime.now().strftime("%Y%m%d")
+    s3_prefix = f"{date_folder}/data"
+    
+    # Create S3 client
+    s3 = boto3.client("s3",
         aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
         aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
-        aws_session_token=os.getenv("AWS_SESSION_TOKEN"),
-        region_name=os.getenv("AWS_REGION", os.getenv("AWS_DEFAULT_REGION", "us-east-1")),
+        region_name=os.getenv("AWS_REGION", "us-east-2")
     )
-    return session.client("s3")
-
-
-def get_date_prefix(date_override: Optional[str] = None) -> str:
-    if date_override:
-        return date_override
-    # YYYYMMDD
-    return datetime.datetime.now().strftime("%Y%m%d")
-
-
-def sync_directory_to_s3(
-    local_dir: Path,
-    bucket: str,
-    s3_prefix: str,
-) -> None:
-    s3 = get_s3_client()
-    local_dir = local_dir.resolve()
-
-    if not local_dir.exists() or not local_dir.is_dir():
-        raise FileNotFoundError(f"Local directory not found or not a directory: {local_dir}")
-
-    for root, _, files in os.walk(local_dir):
+    
+    # Count files
+    file_count = 0
+    total_size = 0
+    
+    print(f"📦 Syncing to s3://{bucket}/{s3_prefix}/")
+    
+    # Upload files
+    for root, _, files in os.walk(data_dir):
         for filename in files:
             local_path = Path(root) / filename
-            rel_path = local_path.relative_to(local_dir)
-            s3_key = f"{s3_prefix.rstrip('/')}/{rel_path.as_posix()}"
+            rel_path = local_path.relative_to(data_dir)
+            s3_key = f"{s3_prefix}/{rel_path.as_posix()}"
+            
             try:
                 s3.upload_file(str(local_path), bucket, s3_key)
-            except ClientError as e:
-                raise RuntimeError(f"Failed to upload {local_path} to s3://{bucket}/{s3_key}: {e}")
+                file_count += 1
+                total_size += local_path.stat().st_size
+                
+                if file_count % 100 == 0:
+                    print(f"  ↳ {file_count} files...")
+            except Exception as e:
+                print(f"  ⚠️ Failed: {rel_path}: {e}")
+    
+    s3_uri = f"s3://{bucket}/{s3_prefix}"
+    size_mb = total_size / (1024 * 1024)
+    
+    print(f"✅ Uploaded {file_count} files ({size_mb:.1f} MB)")
+    print(f"📍 Location: {s3_uri}")
+    
+    # Log version if requested
+    if '--log' in sys.argv:
+        try:
+            from data_logging.version_tracker import log_version
+            version = input("Version number (e.g. 1.0): ")
+            log_version(version, s3_uri, {'size_mb': size_mb, 'files': file_count})
+        except ImportError:
+            pass
+    
+    return s3_uri
 
 
-def write_latest_marker(bucket: str, latest_path: str) -> None:
-    s3 = get_s3_client()
-    marker_key = "latest_data_path.txt"
-    try:
-        s3.put_object(Bucket=bucket, Key=marker_key, Body=latest_path.encode("utf-8"))
-    except ClientError as e:
-        raise RuntimeError(f"Failed to write latest marker to s3://{bucket}/{marker_key}: {e}")
-
-
-def sync_data_folder(
-    data_dir: Path = Path(__file__).resolve().parent,
-    bucket: str = os.getenv("S3_BUCKET", "vmevalkit"),
-    date_prefix: Optional[str] = None,
-) -> str:
-    # s3://<bucket>/<YYYYMMDD>/data
-    date_folder = get_date_prefix(date_prefix)
-    s3_prefix = f"{date_folder}/data"
-    sync_directory_to_s3(local_dir=data_dir, bucket=bucket, s3_prefix=s3_prefix)
-
-    latest_uri = f"s3://{bucket}/{s3_prefix}"
-    write_latest_marker(bucket=bucket, latest_path=latest_uri)
-    return latest_uri
-
-
-def main(argv: list[str]) -> int:
+def main():
+    """CLI entry point."""
     import argparse
-
-    parser = argparse.ArgumentParser(description="Sync local data/ to S3 with date-versioned prefix.")
-    parser.add_argument("--data-dir", type=str, default=str(Path(__file__).resolve().parent), help="Path to local data directory")
-    parser.add_argument("--bucket", type=str, default=os.getenv("S3_BUCKET", "vmevalkit"), help="S3 bucket name")
-    parser.add_argument("--date", type=str, default=None, help="Override date folder (YYYYMMDD)")
-    args = parser.parse_args(argv)
-
-    uri = sync_data_folder(data_dir=Path(args.data_dir), bucket=args.bucket, date_prefix=args.date)
-    print(uri)
-    return 0
+    
+    parser = argparse.ArgumentParser(description="Sync data to S3")
+    parser.add_argument("--date", help="Date folder (YYYYMMDD)")
+    parser.add_argument("--log", action="store_true", help="Log version after upload")
+    
+    args = parser.parse_args()
+    
+    try:
+        sync_to_s3(date_prefix=args.date)
+        return 0
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        return 1
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
-
-
+    sys.exit(main())

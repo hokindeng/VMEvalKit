@@ -25,6 +25,12 @@ import chess.svg
 import io
 from PIL import Image, ImageDraw, ImageFont
 
+# Standardized prompts for chess tasks (can add variations for experiments)
+PROMPTS = [
+    "{side} can deliver checkmate in one move. Show the winning move.",  # Standard prompt
+    # Future variations can be added here for prompt experiments
+]
+
 
 class SelfContainedMateGenerator:
     """Self-contained mate-in-1 position generator - no external dependencies."""
@@ -406,34 +412,19 @@ def create_chess_task_pair(puzzle_data: Dict[str, Any], task_id: str) -> Dict[st
         Task pair dictionary matching maze format
     """
     
-    # Generate prompts
+    # Generate standardized prompt (using PROMPTS[0] as default)
     side = "White" if puzzle_data["side_to_move"] == "white" else "Black"
-    prompts = [
-        f"{side} to move. Find checkmate in one move.",
-        f"{side} can deliver checkmate in one move. Show the winning move.",
-        f"It's {side.lower()}'s turn. Demonstrate the checkmate in one move.",
-        f"{side} to play and mate in 1. Show the solution."
-    ]
+    prompt = PROMPTS[0].format(side=side)
     
-    # Add pattern-specific prompts
-    if "back_rank" in puzzle_data.get("tags", []):
-        prompts.append(f"{side} to move. Find the back-rank mate.")
-    if "queen" in puzzle_data.get("tags", []):
-        prompts.append(f"Use the queen to deliver mate in one move.")
+    # Create temporary files that will be moved to per-question folders
+    import tempfile
+    temp_dir = tempfile.mkdtemp()
     
-    prompt = random.choice(prompts)
-    
-    # Set up file paths (matching maze format - PNG files)
-    base_dir = os.path.join(os.path.dirname(__file__), '..', '..', '..')
-    first_image_path = f"data/generated_chess/{task_id}_first.png"
-    final_image_path = f"data/generated_chess/{task_id}_final.png"
+    first_temp_path = os.path.join(temp_dir, f"{task_id}_first.png")
+    final_temp_path = os.path.join(temp_dir, f"{task_id}_final.png")
     
     # Generate first frame (initial position)
-    chess_dir = os.path.join(base_dir, "data", "generated_chess")
-    os.makedirs(chess_dir, exist_ok=True)
-    
-    first_full_path = os.path.join(base_dir, first_image_path)
-    generate_chess_board_png(puzzle_data["fen"], first_full_path)
+    generate_chess_board_png(puzzle_data["fen"], first_temp_path)
     
     # Generate final frame (after mate move)
     board = chess.Board(puzzle_data["fen"])
@@ -441,8 +432,11 @@ def create_chess_task_pair(puzzle_data: Dict[str, Any], task_id: str) -> Dict[st
     move = board.parse_san(mate_move)
     board.push(move)
     
-    final_full_path = os.path.join(base_dir, final_image_path)
-    generate_chess_board_png(board.fen(), final_full_path)
+    generate_chess_board_png(board.fen(), final_temp_path)
+    
+    # Paths will be updated when moved to per-question folders
+    first_image_path = first_temp_path
+    final_image_path = final_temp_path
     
     print(f"✅ Created chess task {task_id}: {puzzle_data['description']}")
     
@@ -469,7 +463,7 @@ def create_chess_task_pair(puzzle_data: Dict[str, Any], task_id: str) -> Dict[st
     return task_pair
 
 
-def create_chess_dataset(num_samples: int = 100) -> Dict[str, Any]:
+def create_dataset(num_samples: int = 100) -> Dict[str, Any]:
     """
     Create chess reasoning dataset in EXACT same format as maze dataset.
     
@@ -508,64 +502,13 @@ def create_chess_dataset(num_samples: int = 100) -> Dict[str, Any]:
         "pairs": pairs
     }
     
-    # Save to data/chess_tasks/ (matching maze location)
-    base_dir = os.path.join(os.path.dirname(__file__), '..', '..', '..')
-    chess_tasks_dir = os.path.join(base_dir, "data", "chess_tasks")
-    os.makedirs(chess_tasks_dir, exist_ok=True)
-    output_path = os.path.join(base_dir, "data", "chess_tasks", "chess_tasks.json")
-    
-    with open(output_path, 'w') as f:
-        json.dump(dataset, f, indent=2)
-    
-    print(f"✅ Saved chess dataset: {output_path}")
+    # Don't save to intermediate folder anymore - will be handled by create_dataset.py
     print(f"🎯 Chess dataset created successfully!")
     print(f"   Total tasks: {len(pairs)}")
     print(f"   Images created: {len(pairs) * 2}")
-    print(f"   Dataset file: {output_path}")
     
     return dataset
 
 
-def main():
-    """Main function to generate chess dataset."""
-    print("🏁 Self-Contained Chess Reasoning Task Generator")
-    print("=" * 60)
-    
-    # Generate dataset with 100+ positions
-    dataset = create_chess_dataset(num_samples=100)
-    
-    # Show statistics
-    if dataset.get("pairs"):
-        pairs = dataset["pairs"]
-        
-        # Count by difficulty
-        difficulty_counts = {}
-        side_counts = {"white": 0, "black": 0}
-        
-        for pair in pairs:
-            diff = pair.get("difficulty", "easy")
-            difficulty_counts[diff] = difficulty_counts.get(diff, 0) + 1
-            
-            side = pair.get("side_to_move", "white")
-            side_counts[side] += 1
-        
-        print(f"\n📊 Dataset Statistics:")
-        print(f"   Total pairs: {len(pairs)}")
-        print(f"   By difficulty: {difficulty_counts}")
-        print(f"   By side to move: {side_counts}")
-        
-        # Show sample tasks
-        print(f"\n🎯 Sample Tasks:")
-        for i, pair in enumerate(pairs[:3]):
-            print(f"\n{i+1}. {pair['id']} ({pair['difficulty']})")
-            print(f"   Prompt: {pair['prompt']}")
-            print(f"   Side to move: {pair['side_to_move']}")
-            print(f"   Solutions: {', '.join(pair['mate_moves'])}")
-            print(f"   First image: {pair['first_image_path']}")
-            print(f"   Final image: {pair['final_image_path']}")
-    
-    print(f"\n🚀 Self-contained chess reasoning dataset ready!")
-
-
-if __name__ == "__main__":
-    main()
+# Dataset creation should only be done via vmevalkit/runner/create_dataset.py
+# This module only provides the create_dataset() function as an API

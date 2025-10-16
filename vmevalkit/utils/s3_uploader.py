@@ -1,12 +1,12 @@
 """
-S3 uploader for temporary public access to maze images.
+S3 uploader for VMEvalKit - handles both individual files and structured inference outputs.
 """
 
 import os
 import boto3
 from botocore.config import Config
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict
 from datetime import datetime
 import hashlib
 
@@ -105,3 +105,79 @@ class S3ImageUploader:
                 print(f"[S3] Cleaned up {len(objects)} temporary files")
         except Exception as e:
             print(f"[S3] Cleanup failed: {e}")
+    
+    def upload_inference_folder(self, inference_dir: str, prefix: Optional[str] = None) -> Dict[str, str]:
+        """
+        Upload an entire structured inference folder to S3.
+        
+        This uploads the new structured output format:
+        - video/: Generated video files
+        - question/: Input images and prompt
+        - metadata.json: Inference metadata
+        
+        Args:
+            inference_dir: Path to the inference output folder
+            prefix: Optional S3 prefix (defaults to "inferences/{folder_name}")
+            
+        Returns:
+            Dictionary mapping local files to S3 URLs
+        """
+        inference_path = Path(inference_dir)
+        if not inference_path.exists():
+            raise FileNotFoundError(f"Inference directory not found: {inference_dir}")
+        
+        # Default prefix based on folder name
+        if not prefix:
+            prefix = f"inferences/{inference_path.name}"
+        
+        uploaded_files = {}
+        
+        # Walk through all files in the inference directory
+        for file_path in inference_path.rglob('*'):
+            if file_path.is_file():
+                # Create relative path for S3 key
+                relative_path = file_path.relative_to(inference_path)
+                key = f"{prefix}/{relative_path}"
+                
+                # Determine content type
+                content_type = 'application/octet-stream'
+                if file_path.suffix == '.mp4':
+                    content_type = 'video/mp4'
+                elif file_path.suffix == '.png':
+                    content_type = 'image/png'
+                elif file_path.suffix == '.json':
+                    content_type = 'application/json'
+                elif file_path.suffix == '.txt':
+                    content_type = 'text/plain'
+                
+                try:
+                    # Upload file
+                    self.s3_client.upload_file(
+                        str(file_path),
+                        self.bucket_name,
+                        key,
+                        ExtraArgs={'ContentType': content_type}
+                    )
+                    
+                    # Generate presigned URL
+                    url = self.s3_client.generate_presigned_url(
+                        'get_object',
+                        Params={'Bucket': self.bucket_name, 'Key': key},
+                        ExpiresIn=86400  # 24 hours for inference results
+                    )
+                    
+                    uploaded_files[str(relative_path)] = url
+                    print(f"[S3] Uploaded {relative_path}")
+                    
+                except Exception as e:
+                    print(f"[S3] Failed to upload {relative_path}: {e}")
+        
+        # Create index URL for the metadata.json if it exists
+        if 'metadata.json' in uploaded_files:
+            print(f"\n✅ Inference folder uploaded to S3")
+            print(f"   Metadata: {uploaded_files['metadata.json']}")
+            if any('video/' in path for path in uploaded_files):
+                video_urls = [url for path, url in uploaded_files.items() if 'video/' in path]
+                print(f"   Videos: {len(video_urls)} file(s) uploaded")
+        
+        return uploaded_files

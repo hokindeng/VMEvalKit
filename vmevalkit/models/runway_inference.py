@@ -10,6 +10,8 @@ import asyncio
 from typing import Optional, Dict, Any, Union
 from pathlib import Path
 import logging
+import io
+from PIL import Image
 
 logger = logging.getLogger(__name__)
 
@@ -38,17 +40,17 @@ class RunwayService:
         constraints = {
             "gen4_turbo": {
                 "durations": [5, 10],
-                "ratios": ["1280:720", "720:1280", "1024:1024"],  # 720p landscape/portrait, square
+                "ratios": ["16:9", "9:16", "1:1"],  # Standard aspect ratios supported by Gen-4 Turbo
                 "description": "Runway Gen-4 Turbo - Fast high-quality generation"
             },
             "gen4_aleph": {
                 "durations": [5],
-                "ratios": ["1280:720", "720:1280", "1024:1024"],  # 720p landscape/portrait, square
+                "ratios": ["16:9", "9:16", "1:1"],  # Standard aspect ratios supported by Gen-4 Aleph
                 "description": "Runway Gen-4 Aleph - Premium quality"
             },
             "gen3a_turbo": {
                 "durations": [5, 10],
-                "ratios": ["1280:768", "768:1280"],  # Gen-3 specific ratios
+                "ratios": ["1280:768", "768:1280"],  # Gen-3 specific pixel dimensions
                 "description": "Runway Gen-3A Turbo - Proven performance"
             }
         }
@@ -57,6 +59,116 @@ class RunwayService:
             raise ValueError(f"Unknown Runway model: {model}. Available: {list(constraints.keys())}")
         
         return constraints[model]
+    
+    def _determine_best_aspect_ratio(self, image_width: int, image_height: int) -> str:
+        """
+        Determine the best aspect ratio match from supported ratios.
+        
+        Args:
+            image_width: Original image width
+            image_height: Original image height
+            
+        Returns:
+            Best matching aspect ratio string (e.g., "16:9", "1:1", or "1280:768")
+        """
+        input_ratio = image_width / image_height
+        supported_ratios = self.model_constraints["ratios"]
+        
+        # Check if 1:1 is supported and image is square
+        if "1:1" in supported_ratios and 0.9 <= input_ratio <= 1.1:
+            logger.info(f"Square image detected ({image_width}×{image_height}) -> using 1:1")
+            return "1:1"
+        
+        best_ratio = None
+        min_diff = float('inf')
+        
+        for ratio_str in supported_ratios:
+            # Skip 1:1 if we already handled it above
+            if ratio_str == "1:1":
+                continue
+                
+            # Handle both aspect ratio strings (e.g., "16:9") and pixel dimensions (e.g., "1280:768")
+            if ':' in ratio_str:
+                parts = ratio_str.split(':')
+                w, h = map(float, parts)  # Use float to handle both "16:9" and "1280:768"
+                ratio = w / h
+            else:
+                # Fallback for any other format
+                continue
+            
+            diff = abs(input_ratio - ratio)
+            
+            if diff < min_diff:
+                min_diff = diff
+                best_ratio = ratio_str
+        
+        logger.info(f"Input aspect ratio {input_ratio:.3f} ({image_width}×{image_height}) -> Best match: {best_ratio}")
+        return best_ratio
+
+    def _resize_and_pad_image(self, image_path: Union[str, Path], target_ratio: str) -> Path:
+        """
+        Resize and pad image to match target dimensions exactly.
+        
+        Args:
+            image_path: Path to input image
+            target_ratio: Target aspect ratio (e.g., "16:9" or "1280:768")
+            
+        Returns:
+            Path to processed image file
+        """
+        # Parse target dimensions - handle both aspect ratios and pixel dimensions
+        if ':' in target_ratio:
+            parts = target_ratio.split(':')
+            if '.' not in parts[0] and len(parts[0]) > 2:  # Likely pixel dimensions like "1280:768"
+                target_w, target_h = map(int, parts)
+            else:  # Aspect ratio like "16:9"
+                # Convert aspect ratio to target dimensions (use standard 720p resolution)
+                aspect_w, aspect_h = map(float, parts)
+                aspect_ratio = aspect_w / aspect_h
+                if aspect_ratio > 1:  # Landscape
+                    target_w, target_h = 1280, int(1280 / aspect_ratio)
+                else:  # Portrait
+                    target_h, target_w = 1280, int(1280 * aspect_ratio)
+        else:
+            # Default to 720p 16:9 if format not recognized
+            target_w, target_h = 1280, 720
+        
+        # Load and convert image
+        image = Image.open(image_path)
+        if image.mode != "RGB":
+            image = image.convert("RGB")
+        
+        original_w, original_h = image.size
+        logger.info(f"Original image size: {original_w}×{original_h}")
+        
+        # Calculate scaling to fit image within target dimensions while preserving aspect ratio
+        scale_w = target_w / original_w
+        scale_h = target_h / original_h
+        scale = min(scale_w, scale_h)  # Use smaller scale to ensure image fits
+        
+        # Resize image
+        new_w = int(original_w * scale)
+        new_h = int(original_h * scale)
+        resized_image = image.resize((new_w, new_h), Image.Resampling.LANCZOS)
+        
+        # Create canvas with exact target dimensions and white background
+        padded_image = Image.new("RGB", (target_w, target_h), color="white")
+        
+        # Calculate position to center the resized image
+        x_offset = (target_w - new_w) // 2
+        y_offset = (target_h - new_h) // 2
+        
+        # Paste resized image onto padded canvas
+        padded_image.paste(resized_image, (x_offset, y_offset))
+        
+        # Save processed image
+        processed_path = Path(image_path).parent / f"runway_processed_{Path(image_path).name}"
+        padded_image.save(processed_path, "PNG", quality=95)
+        
+        logger.info(f"Processed image: {original_w}×{original_h} -> {new_w}×{new_h} -> {target_w}×{target_h}")
+        logger.info(f"Saved to: {processed_path}")
+        
+        return processed_path
     
     async def generate_video(
         self,
@@ -85,35 +197,51 @@ class RunwayService:
             logger.warning(f"Duration {duration}s not supported for {self.model}. Using {valid_durations[0]}s")
             duration = valid_durations[0]
         
-        # Set default ratio if not provided
+        # Determine best aspect ratio if not provided
         if not ratio:
-            ratio = self.model_constraints["ratios"][0]
+            # Load image to get dimensions for aspect ratio detection
+            with Image.open(image_path) as img:
+                ratio = self._determine_best_aspect_ratio(img.width, img.height)
         elif ratio not in self.model_constraints["ratios"]:
             valid_ratios = self.model_constraints["ratios"]
             logger.warning(f"Ratio {ratio} not supported for {self.model}. Using {valid_ratios[0]}")
             ratio = valid_ratios[0]
         
-        # Upload image to get URL (Runway requires image URLs)
-        image_url = await self._upload_image(image_path)
+        # Process image to match target dimensions
+        processed_image_path = self._resize_and_pad_image(image_path, ratio)
         
-        # Generate video using Runway SDK
-        result = await self._generate_with_runway(prompt, image_url, duration, ratio)
+        # Upload processed image to get URL (Runway requires image URLs)
+        image_url = await self._upload_image(processed_image_path)
         
-        # Download video if output path provided
-        if output_path and result.get("video_url"):
-            saved_path = await self._download_video(result["video_url"], output_path)
-            result["video_path"] = str(saved_path)
-            logger.info(f"Video saved to: {saved_path}")
-        
-        result.update({
-            "model": self.model,
-            "prompt": prompt,
-            "image_path": str(image_path),
-            "duration": duration,
-            "ratio": ratio
-        })
-        
-        return result
+        try:
+            # Generate video using Runway SDK
+            result = await self._generate_with_runway(prompt, image_url, duration, ratio)
+            
+            # Download video if output path provided
+            if output_path and result.get("video_url"):
+                saved_path = await self._download_video(result["video_url"], output_path)
+                result["video_path"] = str(saved_path)
+                logger.info(f"Video saved to: {saved_path}")
+            
+            result.update({
+                "model": self.model,
+                "prompt": prompt,
+                "image_path": str(image_path),
+                "processed_image_path": str(processed_image_path),
+                "duration": duration,
+                "ratio": ratio
+            })
+            
+            return result
+            
+        finally:
+            # Clean up temporary processed image
+            try:
+                if processed_image_path.exists():
+                    processed_image_path.unlink()
+                    logger.debug(f"Cleaned up processed image: {processed_image_path}")
+            except Exception as e:
+                logger.warning(f"Failed to clean up processed image: {e}")
     
     async def _upload_image(self, image_path: Union[str, Path]) -> str:
         """
@@ -166,9 +294,17 @@ class RunwayService:
                     duration=duration
                 ).wait_for_task_output()
                 
+                # Handle case where task.output is a list instead of string
+                video_url = None
+                if hasattr(task, 'output') and task.output:
+                    if isinstance(task.output, list):
+                        video_url = task.output[0] if task.output else None
+                    else:
+                        video_url = task.output
+                
                 return {
                     "task_id": task.id if hasattr(task, 'id') else 'unknown',
-                    "video_url": task.output if hasattr(task, 'output') else None,
+                    "video_url": video_url,
                     "status": "success"
                 }
                 

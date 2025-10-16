@@ -4,6 +4,7 @@ VMEvalKit Inference Runner - Multi-Provider Video Generation
 Unified interface for 37+ text+image→video models across 9 major providers:
 - Luma Dream Machine (2 models)
 - Google Veo (3 models) 
+- Google Veo 3.1 via WaveSpeed (2 models)
 - WaveSpeed WAN 2.x (18 models)
 - Runway ML (3 models)
 - OpenAI Sora (2 models)
@@ -17,13 +18,14 @@ Organized by families for easy scaling and management.
 
 import os
 import asyncio
+import shutil
 from pathlib import Path
 from typing import Dict, Any, Optional, Union
 from datetime import datetime
 import json
 
 from ..models import (
-    LumaInference, VeoService, WaveSpeedService, RunwayService, SoraService,
+    LumaInference, VeoService, Veo31Service, WaveSpeedService, RunwayService, SoraService,
     LTXVideoWrapper, HunyuanVideoWrapper, VideoCrafterWrapper, DynamiCrafterWrapper
 )
 
@@ -36,11 +38,11 @@ class VeoWrapper:
     def __init__(
         self,
         model: str,
-        output_dir: str = "./outputs",
-        api_key: Optional[str] = None,  # Not used for Veo (uses GCP auth)
+        output_dir: str = "./data/outputs",
         **kwargs
     ):
         """Initialize Veo wrapper."""
+        # Veo uses Google Cloud authentication (no API key needed here)
         self.model = model
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(exist_ok=True, parents=True)
@@ -77,12 +79,26 @@ class VeoWrapper:
         duration_seconds = int(duration)
         
         # Run async generation in sync context
+        # Filter kwargs to only include parameters supported by VeoService.generate_video
+        veo_kwargs = {}
+        # VeoService accepts: image_path, image_gcs_uri, duration_seconds, aspect_ratio, resolution,
+        # negative_prompt, enhance_prompt, generate_audio, sample_count, seed, person_generation,
+        # storage_uri, poll_interval_s, poll_timeout_s, download_from_gcs
+        allowed_params = {
+            'image_gcs_uri', 'aspect_ratio', 'resolution', 'negative_prompt', 'enhance_prompt',
+            'generate_audio', 'sample_count', 'seed', 'person_generation', 'storage_uri',
+            'poll_interval_s', 'poll_timeout_s', 'download_from_gcs'
+        }
+        for key, value in kwargs.items():
+            if key in allowed_params:
+                veo_kwargs[key] = value
+        
         video_bytes, metadata = asyncio.run(
             self.veo_service.generate_video(
                 prompt=text_prompt,
                 image_path=str(image_path),
                 duration_seconds=duration_seconds,
-                **kwargs
+                **veo_kwargs
             )
         )
         
@@ -104,14 +120,194 @@ class VeoWrapper:
         duration_taken = time.time() - start_time
         
         return {
+            "success": video_bytes is not None,
             "video_path": str(video_path) if video_path else None,
-            "generation_id": metadata.get('operation_name', 'unknown'),
-            "status": "success" if video_bytes else "completed_no_download",
+            "error": None,
             "duration_seconds": duration_taken,
+            "generation_id": metadata.get('operation_name', 'unknown'),
             "model": self.model,
-            "prompt": text_prompt,
-            "image_path": str(image_path),
-            "metadata": metadata
+            "status": "success" if video_bytes else "completed_no_download",
+            "metadata": {
+                "prompt": text_prompt,
+                "image_path": str(image_path),
+                "veo_metadata": metadata
+            }
+        }
+
+
+class Veo31FastWrapper:
+    """
+    Wrapper for Veo31 Fast Service (Google Veo 3.1 Fast via WaveSpeed).
+    """
+    
+    def __init__(
+        self,
+        model: str,
+        output_dir: str = "./data/outputs",
+        **kwargs
+    ):
+        """Initialize Veo 3.1 Fast wrapper."""
+        self.model = model
+        self.output_dir = Path(output_dir)
+        self.output_dir.mkdir(exist_ok=True, parents=True)
+        
+        # Veo 3.1 Fast uses WaveSpeed API key from environment
+        from vmevalkit.models.wavespeed_inference import WaveSpeedService, WaveSpeedModel
+        self.veo_service = WaveSpeedService(model=WaveSpeedModel.VEO_3_1_FAST_I2V)
+    
+    def generate(
+        self,
+        image_path: Union[str, Path],
+        text_prompt: str,
+        duration: float = 8.0,
+        output_filename: Optional[str] = None,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Generate video using Veo 3.1 Fast (synchronous wrapper).
+        
+        Args:
+            image_path: Path to input image
+            text_prompt: Text description for video generation
+            duration: Video duration (up to 8 seconds for Veo 3.1)
+            output_filename: Optional output filename
+            **kwargs: Additional parameters for Veo 3.1
+        """
+        # Create output path with timestamp
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        if not output_filename:
+            output_filename = f"veo31_fast_{timestamp}.mp4"
+        output_path = self.output_dir / output_filename
+        
+        # Extract Veo 3.1 specific parameters
+        resolution = kwargs.get('resolution', '1080p')
+        aspect_ratio = kwargs.get('aspect_ratio', None)
+        generate_audio = kwargs.get('generate_audio', True)
+        negative_prompt = kwargs.get('negative_prompt', None)
+        seed = kwargs.get('seed', -1)
+        
+        # Run async function synchronously
+        result = asyncio.run(
+            self.veo_service.generate_video(
+                prompt=text_prompt,
+                image_path=image_path,
+                output_path=output_path,
+                duration=duration,
+                resolution=resolution,
+                aspect_ratio=aspect_ratio,
+                generate_audio=generate_audio,
+                negative_prompt=negative_prompt,
+                seed=seed,
+                poll_timeout_s=kwargs.get('poll_timeout_s', 300.0),
+                poll_interval_s=kwargs.get('poll_interval_s', 2.0)
+            )
+        )
+        
+        # Return standardized format
+        return {
+            "success": bool(result.get("video_path")),
+            "video_path": result.get("video_path", str(output_path)),
+            "error": None,
+            "duration_seconds": result.get("duration_seconds", 0),
+            "generation_id": result.get("request_id", 'unknown'),
+            "model": "google/veo3.1-fast/image-to-video",
+            "status": "success" if result.get("video_path") else "failed",
+            "metadata": {
+                "prompt": text_prompt,
+                "image_path": str(image_path),
+                "video_url": result.get("video_url"),
+                "wavespeed_result": result
+            }
+        }
+
+
+class Veo31Wrapper:
+    """
+    Wrapper for Veo31Service (Google Veo 3.1 via WaveSpeed) to match the LumaInference interface.
+    """
+    
+    def __init__(
+        self,
+        model: str,
+        output_dir: str = "./data/outputs",
+        **kwargs
+    ):
+        """Initialize Veo 3.1 wrapper."""
+        self.model = model
+        self.output_dir = Path(output_dir)
+        self.output_dir.mkdir(exist_ok=True, parents=True)
+        
+        # Veo 3.1 uses WaveSpeed API key from environment
+        from vmevalkit.models.wavespeed_inference import Veo31Service
+        self.veo_service = Veo31Service()
+    
+    def generate(
+        self,
+        image_path: Union[str, Path],
+        text_prompt: str,
+        duration: float = 8.0,
+        output_filename: Optional[str] = None,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Generate video using Veo 3.1 (synchronous wrapper).
+        
+        Args:
+            image_path: Path to input image
+            text_prompt: Text description for video generation
+            duration: Video duration (up to 8 seconds for Veo 3.1)
+            output_filename: Optional output filename
+            **kwargs: Additional parameters for Veo 3.1
+        """
+        # Create output path with timestamp
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        if not output_filename:
+            output_filename = f"veo31_{timestamp}.mp4"
+        output_path = self.output_dir / output_filename
+        
+        # Extract Veo 3.1 specific parameters
+        resolution = kwargs.get('resolution', '1080p')
+        aspect_ratio = kwargs.get('aspect_ratio', None)
+        generate_audio = kwargs.get('generate_audio', True)
+        negative_prompt = kwargs.get('negative_prompt', None)
+        seed = kwargs.get('seed', -1)
+        
+        # Run async function synchronously
+        result = asyncio.run(
+            self.veo_service.generate_video(
+                prompt=text_prompt,
+                image_path=image_path,
+                output_path=output_path,
+                duration=duration,
+                resolution=resolution,
+                aspect_ratio=aspect_ratio,
+                generate_audio=generate_audio,
+                negative_prompt=negative_prompt,
+                seed=seed,
+                poll_timeout_s=kwargs.get('poll_timeout_s', 300.0),
+                poll_interval_s=kwargs.get('poll_interval_s', 2.0)
+            )
+        )
+        
+        # Return standardized format
+        return {
+            "success": bool(result.get("video_path")),
+            "video_path": result.get("video_path", str(output_path)),
+            "error": None,
+            "duration_seconds": result.get("duration_seconds", 0),
+            "generation_id": result.get("request_id", 'unknown'),
+            "model": "google/veo3.1/image-to-video",
+            "status": "success" if result.get("video_path") else "failed",
+            "metadata": {
+                "prompt": text_prompt,
+                "image_path": str(image_path),
+                "video_url": result.get("video_url"),
+                "wavespeed_result": result
+            }
         }
 
 
@@ -123,8 +319,7 @@ class WaveSpeedWrapper:
     def __init__(
         self,
         model: str,
-        output_dir: str = "./outputs",
-        api_key: Optional[str] = None,  # Not used - WaveSpeed uses WAVESPEED_API_KEY env var
+        output_dir: str = "./data/outputs",
         **kwargs
     ):
         """Initialize WaveSpeed wrapper."""
@@ -172,28 +367,45 @@ class WaveSpeedWrapper:
         output_path = self.output_dir / output_filename
         
         # Run async generation in sync context
+        # Filter kwargs to only include parameters supported by WaveSpeedService.generate_video
+        wavespeed_kwargs = {}
+        # WaveSpeedService accepts: seed, output_path, poll_timeout_s, poll_interval_s,
+        # aspect_ratio, duration, resolution, generate_audio, negative_prompt
+        allowed_params = {
+            'poll_timeout_s', 'poll_interval_s', 'aspect_ratio', 'duration',
+            'resolution', 'generate_audio', 'negative_prompt'
+        }
+        for key, value in kwargs.items():
+            if key in allowed_params:
+                wavespeed_kwargs[key] = value
+        
         result = asyncio.run(
             self.wavespeed_service.generate_video(
                 prompt=text_prompt,
                 image_path=str(image_path),
                 seed=seed,
                 output_path=output_path,
-                **kwargs
+                **wavespeed_kwargs
             )
         )
         
         duration_taken = time.time() - start_time
         
         return {
+            "success": bool(result.get("video_path")),
             "video_path": result.get("video_path"),
-            "generation_id": result.get("request_id", 'unknown'),
-            "status": "success" if result.get("video_path") else "completed_no_download",
+            "error": None,
             "duration_seconds": duration_taken,
+            "generation_id": result.get("request_id", 'unknown'),
             "model": self.model,
-            "prompt": text_prompt,
-            "image_path": str(image_path),
-            "video_url": result.get("video_url"),
-            "seed": seed
+            "status": "success" if result.get("video_path") else "failed",
+            "metadata": {
+                "prompt": text_prompt,
+                "image_path": str(image_path),
+                "video_url": result.get("video_url"),
+                "seed": seed,
+                "wavespeed_result": result
+            }
         }
 
 
@@ -205,8 +417,7 @@ class RunwayWrapper:
     def __init__(
         self,
         model: str,
-        output_dir: str = "./outputs",
-        api_key: Optional[str] = None,  # Not used - Runway uses RUNWAYML_API_SECRET env var
+        output_dir: str = "./data/outputs",
         **kwargs
     ):
         """Initialize Runway wrapper."""
@@ -257,30 +468,37 @@ class RunwayWrapper:
         output_path = self.output_dir / output_filename
         
         # Run async generation in sync context
+        # Filter kwargs - RunwayService.generate_video only accepts:
+        # prompt, image_path, duration, ratio, output_path
+        # All parameters are already passed explicitly, so no additional kwargs
         result = asyncio.run(
             self.runway_service.generate_video(
                 prompt=text_prompt,
                 image_path=str(image_path),
                 duration=duration_int,
                 ratio=ratio,
-                output_path=output_path,
-                **kwargs
+                output_path=output_path
             )
         )
         
         duration_taken = time.time() - start_time
         
         return {
+            "success": bool(result.get("video_path")),
             "video_path": result.get("video_path"),
-            "generation_id": result.get("task_id", 'unknown'),
-            "status": "success" if result.get("video_path") else "completed_no_download",
+            "error": None,
             "duration_seconds": duration_taken,
+            "generation_id": result.get("task_id", 'unknown'),
             "model": self.model,
-            "prompt": text_prompt,
-            "image_path": str(image_path),
-            "video_url": result.get("video_url"),
-            "duration": duration_int,
-            "ratio": result.get("ratio")
+            "status": "success" if result.get("video_path") else "failed",
+            "metadata": {
+                "prompt": text_prompt,
+                "image_path": str(image_path),
+                "video_url": result.get("video_url"),
+                "duration": duration_int,
+                "ratio": result.get("ratio"),
+                "runway_result": result
+            }
         }
 
 
@@ -292,8 +510,7 @@ class OpenAIWrapper:
     def __init__(
         self,
         model: str,
-        output_dir: str = "./outputs",
-        api_key: Optional[str] = None,  # Not used - Sora uses OPENAI_API_KEY env var
+        output_dir: str = "./data/outputs",
         **kwargs
     ):
         """Initialize OpenAI Sora wrapper."""
@@ -344,6 +561,9 @@ class OpenAIWrapper:
         output_path = self.output_dir / output_filename
         
         # Run async generation in sync context
+        # Filter kwargs - SoraService.generate_video only accepts:
+        # prompt, image_path, duration, size, output_path, auto_pad
+        # All parameters are already passed explicitly, so no additional kwargs
         result = asyncio.run(
             self.sora_service.generate_video(
                 prompt=text_prompt,
@@ -351,23 +571,27 @@ class OpenAIWrapper:
                 duration=duration_int,
                 size=size,
                 output_path=output_path,
-                auto_pad=True,  # Enable auto-padding by default
-                **kwargs
+                auto_pad=True  # Enable auto-padding by default
             )
         )
         
         duration_taken = time.time() - start_time
         
         return {
+            "success": bool(result.get("video_path")),
             "video_path": result.get("video_path"),
-            "generation_id": result.get("video_id", 'unknown'),
-            "status": "success" if result.get("video_path") else "completed_no_download",
+            "error": None,
             "duration_seconds": duration_taken,
+            "generation_id": result.get("video_id", 'unknown'),
             "model": self.model,
-            "prompt": text_prompt,
-            "image_path": str(image_path),
-            "duration": duration_int,
-            "size": result.get("size")
+            "status": "success" if result.get("video_path") else "failed",
+            "metadata": {
+                "prompt": text_prompt,
+                "image_path": str(image_path),
+                "duration": duration_int,
+                "size": result.get("size"),
+                "sora_result": result
+            }
         }
 
 
@@ -566,6 +790,38 @@ OPENAI_SORA_MODELS = {
     }
 }
 
+# Google Veo 3.1 Models (via WaveSpeed)
+GOOGLE_VEO31_MODELS = {
+    "veo-3.1": {
+        "class": Veo31Wrapper,
+        "model": "veo-3.1",
+        "args": {},
+        "description": "Google Veo 3.1 - Native 1080p with audio generation (via WaveSpeed)",
+        "family": "Google Veo 3.1"
+    },
+    "veo-3.1-720p": {
+        "class": Veo31Wrapper,
+        "model": "veo-3.1-720p",
+        "args": {"resolution": "720p"},
+        "description": "Google Veo 3.1 - 720p with audio generation (via WaveSpeed)",
+        "family": "Google Veo 3.1"
+    },
+    "veo-3.1-fast": {
+        "class": Veo31FastWrapper,
+        "model": "veo-3.1-fast",
+        "args": {},
+        "description": "Google Veo 3.1 Fast - 1080p, 30% faster generation (via WaveSpeed)",
+        "family": "Google Veo 3.1"
+    },
+    "veo-3.1-fast-720p": {
+        "class": Veo31FastWrapper,
+        "model": "veo-3.1-fast-720p",
+        "args": {"resolution": "720p"},
+        "description": "Google Veo 3.1 Fast - 720p, 30% faster generation (via WaveSpeed)",
+        "family": "Google Veo 3.1"
+    }
+}
+
 # ========================================
 # OPEN-SOURCE MODELS (SUBMODULES)  
 # ========================================
@@ -642,6 +898,7 @@ DYNAMICRAFTER_MODELS = {
 AVAILABLE_MODELS = {
     **LUMA_MODELS,
     **VEO_MODELS,
+    **GOOGLE_VEO31_MODELS,
     **WAVESPEED_WAN_22_MODELS,
     **WAVESPEED_WAN_21_MODELS,
     **RUNWAY_MODELS,
@@ -656,6 +913,7 @@ AVAILABLE_MODELS = {
 MODEL_FAMILIES = {
     "Luma Dream Machine": LUMA_MODELS,
     "Google Veo": VEO_MODELS,
+    "Google Veo 3.1": GOOGLE_VEO31_MODELS,
     "WaveSpeed WAN 2.2": WAVESPEED_WAN_22_MODELS,
     "WaveSpeed WAN 2.1": WAVESPEED_WAN_21_MODELS,
     "Runway ML": RUNWAY_MODELS,
@@ -714,8 +972,8 @@ def run_inference(
     model_name: str,
     image_path: Union[str, Path],
     text_prompt: str,
-    output_dir: str = "./outputs",
-    api_key: Optional[str] = None,
+    output_dir: str = "./data/outputs",
+    question_data: Optional[Dict[str, Any]] = None,
     **kwargs
 ) -> Dict[str, Any]:
     """
@@ -726,7 +984,7 @@ def run_inference(
         image_path: Path to input image
         text_prompt: Text instructions for video generation
         output_dir: Directory to save outputs
-        api_key: Optional API key (uses env var if not provided)
+        question_data: Optional question metadata including final_image_path
         **kwargs: Additional model-specific parameters
         
     Returns:
@@ -741,26 +999,42 @@ def run_inference(
     model_config = AVAILABLE_MODELS[model_name]
     model_class = model_config["class"]
     
-    # Create model instance with only constructor-safe parameters
+    # Create structured output directory for this inference
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    inference_id = kwargs.pop('inference_id', f"{model_name}_{timestamp}")  # Remove from kwargs
+    inference_dir = Path(output_dir) / inference_id
+    video_dir = inference_dir / "video"
+    video_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Create model instance - no API key needed! Models handle their own config
     init_kwargs = {
         "model": model_config["model"],
-        "output_dir": output_dir,
+        "output_dir": str(video_dir),  # Save video to the video subdirectory
     }
-    if api_key is not None:
-        init_kwargs["api_key"] = api_key
 
     model = model_class(**init_kwargs)
     
-    # Run inference, forwarding runtime options (e.g., output_filename) to generate
-    return model.generate(image_path, text_prompt, **kwargs)
+    # Run inference - clean kwargs, no filtering needed!
+    result = model.generate(image_path, text_prompt, **kwargs)
+    
+    # Add structured output directory to result
+    result["inference_dir"] = str(inference_dir)
+    result["question_data"] = question_data
+    
+    return result
 
 
 class InferenceRunner:
     """
-    Simple inference runner for managing video generation.
+    Enhanced inference runner for managing video generation with structured output folders.
+    
+    Each inference creates a self-contained folder with:
+    - video/: Generated video file(s)
+    - question/: Input images and prompt
+    - metadata.json: Complete inference metadata
     """
     
-    def __init__(self, output_dir: str = "./outputs"):
+    def __init__(self, output_dir: str = "./data/outputs"):
         """
         Initialize runner.
         
@@ -780,16 +1054,18 @@ class InferenceRunner:
         image_path: Union[str, Path],
         text_prompt: str,
         run_id: Optional[str] = None,
+        question_data: Optional[Dict[str, Any]] = None,
         **kwargs
     ) -> Dict[str, Any]:
         """
-        Run inference and log results.
+        Run inference and create structured output folder.
         
         Args:
             model_name: Model to use
-            image_path: Input image
+            image_path: Input image (first frame)
             text_prompt: Text instructions
             run_id: Optional run identifier
+            question_data: Optional question metadata including final_image_path
             **kwargs: Additional parameters
             
         Returns:
@@ -799,24 +1075,42 @@ class InferenceRunner:
         
         # Generate run ID if not provided
         if not run_id:
-            run_id = f"{model_name}_{start_time.strftime('%Y%m%d_%H%M%S')}"
+            question_id = question_data.get('id', 'unknown') if question_data else 'unknown'
+            run_id = f"{model_name}_{question_id}_{start_time.strftime('%Y%m%d_%H%M%S')}"
+        
+        # Create structured output directory
+        inference_dir = self.output_dir / run_id
+        inference_dir.mkdir(parents=True, exist_ok=True)
         
         try:
-            # Run inference
+            # Run inference with inference_id for structured output
             result = run_inference(
                 model_name=model_name,
                 image_path=image_path,
                 text_prompt=text_prompt,
                 output_dir=self.output_dir,
-                **kwargs
+                question_data=question_data,
+                inference_id=run_id,
+                **kwargs  # Clean! No filtering needed
             )
             
             # Add metadata
             result["run_id"] = run_id
             result["timestamp"] = start_time.isoformat()
             
+            # Create question folder and copy images
+            self._setup_question_folder(inference_dir, image_path, text_prompt, question_data)
+            
+            # Save metadata
+            self._save_metadata(inference_dir, result, question_data)
+            
             # Log the run
             self._log_run(run_id, result)
+            
+            print(f"\n✅ Inference complete! Output saved to: {inference_dir}")
+            print(f"   - Video: {inference_dir}/video/")
+            print(f"   - Question data: {inference_dir}/question/")
+            print(f"   - Metadata: {inference_dir}/metadata.json")
             
             return result
             
@@ -827,10 +1121,125 @@ class InferenceRunner:
                 "status": "failed",
                 "error": str(e),
                 "model": model_name,
-                "timestamp": start_time.isoformat()
+                "timestamp": start_time.isoformat(),
+                "inference_dir": str(inference_dir)
             }
+            
+            # Save error metadata
+            self._save_metadata(inference_dir, error_result, question_data)
             self._log_run(run_id, error_result)
+            
+            print(f"\n❌ Inference failed: {e}")
+            print(f"   Error details saved to: {inference_dir}/metadata.json")
+            
             return error_result
+    
+    def _setup_question_folder(self, inference_dir: Path, first_image: Union[str, Path], 
+                               prompt: str, question_data: Optional[Dict[str, Any]]):
+        """
+        Create question folder with input images and prompt.
+        
+        Args:
+            inference_dir: Directory for this inference
+            first_image: Path to first image (input to model)
+            prompt: Text prompt
+            question_data: Optional question metadata
+        """
+        question_dir = inference_dir / "question"
+        question_dir.mkdir(exist_ok=True)
+        
+        # Copy first image
+        first_image_path = Path(first_image)
+        if first_image_path.exists():
+            dest_first = question_dir / f"first_frame{first_image_path.suffix}"
+            shutil.copy2(first_image_path, dest_first)
+        
+        # Copy final image if available
+        if question_data and 'final_image_path' in question_data:
+            final_image_path = Path(question_data['final_image_path'])
+            if final_image_path.exists():
+                dest_final = question_dir / f"final_frame{final_image_path.suffix}"
+                shutil.copy2(final_image_path, dest_final)
+        
+        # Save prompt to text file
+        prompt_file = question_dir / "prompt.txt"
+        with open(prompt_file, 'w') as f:
+            f.write(prompt)
+        
+        # Save question metadata if available
+        if question_data:
+            question_metadata_file = question_dir / "question_metadata.json"
+            with open(question_metadata_file, 'w') as f:
+                json.dump(question_data, f, indent=2)
+    
+    def _save_metadata(self, inference_dir: Path, result: Dict[str, Any], 
+                      question_data: Optional[Dict[str, Any]]):
+        """
+        Save complete metadata for the inference.
+        
+        Args:
+            inference_dir: Directory for this inference
+            result: Inference result
+            question_data: Optional question metadata
+        """
+        metadata = {
+            "inference": {
+                "run_id": result.get("run_id"),
+                "model": result.get("model"),
+                "timestamp": result.get("timestamp"),
+                "status": result.get("status", "unknown"),
+                "duration_seconds": result.get("duration_seconds"),
+                "error": result.get("error")
+            },
+            "input": {
+                "prompt": result.get("prompt"),
+                "image_path": result.get("image_path"),
+                "question_id": question_data.get("id") if question_data else None,
+                "task_category": question_data.get("task_category") if question_data else None
+            },
+            "output": {
+                "video_path": result.get("video_path"),
+                "video_url": result.get("video_url"),
+                "generation_id": result.get("generation_id")
+            },
+            "paths": {
+                "inference_dir": str(inference_dir),
+                "video_dir": str(inference_dir / "video"),
+                "question_dir": str(inference_dir / "question")
+            },
+            "question_data": question_data
+        }
+        
+        # Remove None values for cleaner output
+        metadata = self._remove_none_values(metadata)
+        
+        metadata_file = inference_dir / "metadata.json"
+        with open(metadata_file, 'w') as f:
+            json.dump(metadata, f, indent=2)
+    
+    def _remove_none_values(self, d: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Recursively remove None values from a dictionary.
+        
+        Args:
+            d: Dictionary to clean
+            
+        Returns:
+            Dictionary without None values
+        """
+        if not isinstance(d, dict):
+            return d
+        
+        clean = {}
+        for key, value in d.items():
+            if value is not None:
+                if isinstance(value, dict):
+                    nested = self._remove_none_values(value)
+                    if nested:  # Only include non-empty dicts
+                        clean[key] = nested
+                else:
+                    clean[key] = value
+        return clean
     
     def list_models(self) -> Dict[str, str]:
         """List available models and their descriptions."""
@@ -865,10 +1274,18 @@ class InferenceRunner:
     
     def _log_run(self, run_id: str, result: Dict[str, Any]):
         """Log a run to the log file."""
-        self.runs.append({
+        # Create a clean copy for logging (avoid circular references)
+        log_entry = {
             "run_id": run_id,
-            **result
-        })
+            "model": result.get("model"),
+            "status": result.get("status"),
+            "timestamp": result.get("timestamp"),
+            "inference_dir": result.get("inference_dir"),
+            "video_path": result.get("video_path"),
+            "error": result.get("error")
+        }
+        
+        self.runs.append(log_entry)
         
         with open(self.log_file, 'w') as f:
             json.dump(self.runs, f, indent=2)

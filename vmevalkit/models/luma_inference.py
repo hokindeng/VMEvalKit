@@ -35,19 +35,17 @@ class LumaInference:
     
     def __init__(
         self,
-        api_key: Optional[str] = None,
         enhance_prompt: bool = True,
         loop_video: bool = False,
         aspect_ratio: str = "16:9",
         model: str = "ray-2",
         verbose: bool = True,
-        output_dir: str = "./outputs"
+        output_dir: str = "./data/outputs"
     ):
         """
         Initialize Luma inference client.
         
         Args:
-            api_key: API key for authentication
             enhance_prompt: Whether to enhance the prompt automatically
             loop_video: Whether to create looping videos
             aspect_ratio: Video aspect ratio (e.g., "16:9", "1:1", "9:16")
@@ -55,9 +53,13 @@ class LumaInference:
             verbose: Print progress messages
             output_dir: Directory to save generated videos
         """
-        self.api_key = api_key or os.environ.get("LUMA_API_KEY")
+        # Get API key from environment - clean and consistent!
+        self.api_key = os.getenv("LUMA_API_KEY")
         if not self.api_key:
-            raise ValueError("API key required. Set LUMA_API_KEY environment variable.")
+            raise ValueError(
+                "Luma API not configured: LUMA_API_KEY environment variable required.\n"
+                "Set LUMA_API_KEY in your environment or .env file."
+            )
         
         self.enhance_prompt = enhance_prompt
         self.loop_video = loop_video
@@ -97,55 +99,85 @@ class LumaInference:
             
         Returns:
             Dictionary with:
+            - success: Whether generation succeeded
             - video_path: Path to generated video
-            - generation_id: Luma generation ID
-            - status: Generation status
+            - error: Error message if failed
             - duration_seconds: Time taken to generate
+            - generation_id: Luma generation ID
+            - model: Model name
+            - status: Generation status
+            - metadata: Additional metadata
         """
         start_time = time.time()
         
-        # Convert image to URL (Luma requires image URLs)
-        image_url = self._get_image_url(image_path)
-        
-        # Create generation
-        generation_id = self._create_generation(image_url, text_prompt)
-        
-        if self.verbose:
-            print(f"Started generation: {generation_id}")
-        
-        # Poll for completion
-        video_url = self._poll_generation(generation_id)
-        
-        # Download video
-        if not output_filename:
-            output_filename = f"luma_{generation_id}.mp4"
-        
-        video_path = self.output_dir / output_filename
-        self._download_video(video_url, video_path)
-        
-        duration_seconds = time.time() - start_time
-        
-        result = {
-            "video_path": str(video_path),
-            "generation_id": generation_id,
-            "status": "success",
-            "duration_seconds": duration_seconds,
-            "model": self.model,
-            "prompt": text_prompt,
-            "image_path": str(image_path)
-        }
-        
-        if self.verbose:
-            print(f"✅ Generated video: {video_path}")
-            print(f"   Time taken: {duration_seconds:.1f}s")
-        
-        # Clean up S3 resources
-        if self._s3_uploader:
-            self._s3_uploader.cleanup()
+        try:
+            # Convert image to URL (Luma requires image URLs)
+            image_url = self._get_image_url(image_path)
+            
+            # Create generation
+            generation_id = self._create_generation(image_url, text_prompt)
+            
             if self.verbose:
-                print("   Cleaned up temporary S3 resources")
-        
-        return result
+                print(f"Started generation: {generation_id}")
+            
+            # Poll for completion
+            video_url = self._poll_generation(generation_id)
+            
+            # Download video
+            if not output_filename:
+                output_filename = f"luma_{generation_id}.mp4"
+            
+            video_path = self.output_dir / output_filename
+            self._download_video(video_url, video_path)
+            
+            duration_seconds = time.time() - start_time
+            
+            result = {
+                "success": True,
+                "video_path": str(video_path),
+                "error": None,
+                "duration_seconds": duration_seconds,
+                "generation_id": generation_id,
+                "model": self.model,
+                "status": "success",
+                "metadata": {
+                    "prompt": text_prompt,
+                    "image_path": str(image_path)
+                }
+            }
+            
+            if self.verbose:
+                print(f"✅ Generated video: {video_path}")
+                print(f"   Time taken: {duration_seconds:.1f}s")
+            
+            # Clean up S3 resources
+            if self._s3_uploader:
+                self._s3_uploader.cleanup()
+                if self.verbose:
+                    print("   Cleaned up temporary S3 resources")
+            
+            return result
+            
+        except (LumaAPIError, Exception) as e:
+            duration_seconds = time.time() - start_time
+            
+            # Clean up S3 resources on error
+            if self._s3_uploader:
+                self._s3_uploader.cleanup()
+            
+            return {
+                "success": False,
+                "video_path": None,
+                "error": str(e),
+                "duration_seconds": duration_seconds,
+                "generation_id": "unknown",
+                "model": self.model,
+                "status": "failed",
+                "metadata": {
+                    "prompt": text_prompt,
+                    "image_path": str(image_path)
+                }
+            }
     
     def _get_image_url(self, image_path: Union[str, Path]) -> str:
         """Convert local image to URL using S3."""
@@ -245,8 +277,7 @@ class LumaInference:
 def generate_video(
     image_path: str,
     text_prompt: str,
-    api_key: Optional[str] = None,
-    output_dir: str = "./outputs",
+    output_dir: str = "./data/outputs",
     **kwargs
 ) -> Dict[str, Any]:
     """
@@ -255,12 +286,11 @@ def generate_video(
     Args:
         image_path: Path to input image
         text_prompt: Text instructions
-        api_key: Optional API key (uses env var if not provided)
         output_dir: Where to save the video
         **kwargs: Additional parameters passed to LumaInference
     
     Returns:
         Dictionary with generation results
     """
-    client = LumaInference(api_key=api_key, output_dir=output_dir, **kwargs)
+    client = LumaInference(output_dir=output_dir, **kwargs)
     return client.generate(image_path, text_prompt)

@@ -1,7 +1,9 @@
 """
-WaveSpeedAI WAN 2.x Image-to-Video Generation Service.
+WaveSpeedAI Image-to-Video Generation Service.
 
-Supports text + image → video generation using WaveSpeedAI's WAN 2.1 and WAN 2.2 models.
+Supports text + image → video generation using WaveSpeedAI's platform:
+- Google Veo 3.1 models  
+- WaveSpeedAI WAN 2.1 and WAN 2.2 models
 """
 
 import os
@@ -13,12 +15,18 @@ from typing import Optional, Dict, Any, Union
 from pathlib import Path
 import logging
 from enum import Enum
+import io
+from PIL import Image
 
 logger = logging.getLogger(__name__)
 
 
-class WANModel(str, Enum):
-    """WaveSpeedAI WAN model endpoints for I2V generation."""
+class WaveSpeedModel(str, Enum):
+    """WaveSpeedAI model endpoints for I2V generation."""
+    
+    # Google Veo Models
+    VEO_3_1_I2V = "veo3.1/image-to-video"  # Veo 3.1 standard image-to-video endpoint
+    VEO_3_1_FAST_I2V = "veo3.1-fast/image-to-video"  # Veo 3.1 fast image-to-video endpoint
     
     # WAN 2.2 Models
     WAN_2_2_I2V_480P = "wan-2.2/i2v-480p"
@@ -41,17 +49,20 @@ class WANModel(str, Enum):
     WAN_2_1_I2V_720P_ULTRA_FAST = "wan-2.1/i2v-720p-ultra-fast"
     WAN_2_1_I2V_720P_LORA = "wan-2.1/i2v-720p-lora"
     WAN_2_1_I2V_720P_LORA_ULTRA_FAST = "wan-2.1/i2v-720p-lora-ultra-fast"
+    
+# Keep backward compatibility
+WANModel = WaveSpeedModel
 
 
 class WaveSpeedService:
-    """Service for image-to-video generation using WaveSpeedAI WAN models."""
+    """Service for image-to-video generation using WaveSpeedAI models (WAN and Veo)."""
     
-    def __init__(self, model: str = WANModel.WAN_2_2_I2V_720P):
+    def __init__(self, model: str = WaveSpeedModel.WAN_2_2_I2V_720P):
         """
         Initialize WaveSpeed service.
         
         Args:
-            model: WAN model variant to use
+            model: Model variant to use (WAN or Veo)
         """
         self.api_key = os.getenv("WAVESPEED_API_KEY")
         if not self.api_key:
@@ -64,6 +75,104 @@ class WaveSpeedService:
             "Content-Type": "application/json"
         }
     
+    def _is_veo_model(self) -> bool:
+        """Check if the current model is a VEO 3.1 model."""
+        veo_models = [WaveSpeedModel.VEO_3_1_I2V, WaveSpeedModel.VEO_3_1_FAST_I2V]
+        veo_values = [WaveSpeedModel.VEO_3_1_I2V.value, WaveSpeedModel.VEO_3_1_FAST_I2V.value]
+        return self.model in veo_models or self.model in veo_values
+
+    def _determine_best_veo_aspect_ratio(self, image_width: int, image_height: int, preferred_ratio: Optional[str] = None) -> str:
+        """
+        Determine the best aspect ratio for VEO 3.1 based on input image dimensions.
+        
+        Args:
+            image_width: Original image width
+            image_height: Original image height  
+            preferred_ratio: User-specified preferred ratio
+            
+        Returns:
+            Best aspect ratio string ("16:9" or "9:16" only)
+        """
+        # VEO 3.1 via WaveSpeed API only supports these two aspect ratios
+        supported_ratios = {
+            "16:9": 16/9,   # ~1.78 (landscape)
+            "9:16": 9/16    # ~0.56 (portrait)
+        }
+        
+        # If user specified a ratio and it's supported, use it
+        if preferred_ratio and preferred_ratio in supported_ratios:
+            return preferred_ratio
+            
+        input_ratio = image_width / image_height
+        
+        # Special handling for square images (1:1)
+        # Default to landscape (16:9) for square images since it's more common
+        if 0.9 <= input_ratio <= 1.1:  # Close to square
+            best_ratio = "16:9"
+            logger.info(f"Square image detected ({image_width}×{image_height}) -> defaulting to landscape {best_ratio}")
+            return best_ratio
+        
+        # For non-square images, find the closest matching aspect ratio
+        # If input is wider than tall (>1), use landscape; otherwise use portrait
+        if input_ratio > 1:
+            best_ratio = "16:9"  # Landscape
+        else:
+            best_ratio = "9:16"  # Portrait
+        
+        logger.info(f"Input aspect ratio {input_ratio:.3f} ({image_width}×{image_height}) -> Best VEO match: {best_ratio}")
+        return best_ratio
+
+    def _pad_image_for_veo(self, image: Image.Image, target_aspect_ratio: str) -> Image.Image:
+        """
+        Pad an image with white margins to match VEO's target aspect ratio.
+        
+        Args:
+            image: PIL Image to pad
+            target_aspect_ratio: Target aspect ratio ("16:9" or "9:16")
+            
+        Returns:
+            PIL Image with white padding to match target aspect ratio
+        """
+        # Parse target aspect ratio - VEO 3.1 via WaveSpeed only supports these
+        aspect_ratios = {
+            "16:9": 16/9,
+            "9:16": 9/16
+        }
+        
+        if target_aspect_ratio not in aspect_ratios:
+            raise ValueError(f"Unsupported VEO aspect ratio: {target_aspect_ratio}")
+        
+        target_ratio = aspect_ratios[target_aspect_ratio]
+        width, height = image.size
+        current_ratio = width / height
+        
+        # If already correct ratio, return as-is
+        if abs(current_ratio - target_ratio) < 0.01:
+            return image
+        
+        # Calculate target dimensions  
+        if current_ratio > target_ratio:
+            # Image is wider than target - add height padding
+            new_width = width
+            new_height = int(width / target_ratio)
+        else:
+            # Image is taller than target - add width padding
+            new_height = height
+            new_width = int(height * target_ratio)
+        
+        # Create white canvas with target dimensions
+        padded = Image.new("RGB", (new_width, new_height), color="white")
+        
+        # Calculate position to center the original image
+        x_offset = (new_width - width) // 2
+        y_offset = (new_height - height) // 2
+        
+        # Paste original image onto white canvas
+        padded.paste(image, (x_offset, y_offset))
+        
+        logger.info(f"VEO padding: {width}×{height} -> {new_width}×{new_height} for {target_aspect_ratio} ratio")
+        return padded
+
     async def generate_video(
         self,
         prompt: str,
@@ -71,7 +180,13 @@ class WaveSpeedService:
         seed: int = -1,
         output_path: Optional[Path] = None,
         poll_timeout_s: float = 300.0,
-        poll_interval_s: float = 2.0
+        poll_interval_s: float = 2.0,
+        # Veo 3.1 specific parameters
+        aspect_ratio: Optional[str] = None,
+        duration: Optional[float] = None,
+        resolution: Optional[str] = None,
+        generate_audio: Optional[bool] = None,
+        negative_prompt: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Generate video from text prompt and image.
@@ -83,15 +198,35 @@ class WaveSpeedService:
             output_path: Optional path to save video (if not provided, returns URL)
             poll_timeout_s: Maximum time to wait for completion
             poll_interval_s: Time between polling attempts
+            aspect_ratio: Video aspect ratio (Veo 3.1 only)
+            duration: Video duration in seconds (Veo 3.1 only, up to 8s)
+            resolution: Output resolution e.g. "1080p", "720p" (Veo 3.1 only)
+            generate_audio: Whether to generate audio (Veo 3.1 only)
+            negative_prompt: Negative prompt to avoid certain content (Veo 3.1 only)
             
         Returns:
             Dictionary with generation results including video URL/path
         """
-        # Encode image to base64
-        image_b64 = self._encode_image(image_path)
+        # Auto-detect best aspect ratio for VEO models if not specified
+        if self._is_veo_model() and not aspect_ratio:
+            with Image.open(image_path) as img:
+                aspect_ratio = self._determine_best_veo_aspect_ratio(img.width, img.height)
+                logger.info(f"Auto-detected aspect ratio for VEO: {aspect_ratio}")
+
+        # Encode image to base64 (with VEO padding if needed)
+        image_b64 = self._encode_image(image_path, aspect_ratio)
         
         # Submit generation request
-        request_id = await self._submit_generation(prompt, image_b64, seed)
+        request_id = await self._submit_generation(
+            prompt=prompt,
+            image_b64=image_b64,
+            seed=seed,
+            aspect_ratio=aspect_ratio,
+            duration=duration,
+            resolution=resolution,
+            generate_audio=generate_audio,
+            negative_prompt=negative_prompt
+        )
         logger.info(f"WaveSpeed generation started. Request ID: {request_id}")
         
         # Poll for completion
@@ -110,6 +245,18 @@ class WaveSpeedService:
             "seed": seed
         }
         
+        # Add Veo 3.1 parameters to result if used
+        # Check both enum and string value forms
+        veo_models = [WaveSpeedModel.VEO_3_1_I2V, WaveSpeedModel.VEO_3_1_FAST_I2V]
+        veo_values = [WaveSpeedModel.VEO_3_1_I2V.value, WaveSpeedModel.VEO_3_1_FAST_I2V.value]
+        
+        if self.model in veo_models or self.model in veo_values:
+            if aspect_ratio: result["aspect_ratio"] = aspect_ratio
+            if duration: result["duration"] = duration
+            if resolution: result["resolution"] = resolution
+            if generate_audio is not None: result["generate_audio"] = generate_audio
+            if negative_prompt: result["negative_prompt"] = negative_prompt
+        
         # Download video if output path provided
         if output_path and result_url:
             saved_path = await self._download_video(result_url, output_path)
@@ -118,27 +265,93 @@ class WaveSpeedService:
         
         return result
     
-    def _encode_image(self, image_path: Union[str, Path]) -> str:
-        """Encode image file to base64."""
+    def _encode_image(self, image_path: Union[str, Path], aspect_ratio: Optional[str] = None) -> str:
+        """
+        Encode image file to base64, with optional VEO padding.
+        
+        Args:
+            image_path: Path to input image
+            aspect_ratio: Target aspect ratio for VEO models
+            
+        Returns:
+            Base64 encoded image string
+        """
         path = Path(image_path)
         if not path.exists():
             raise FileNotFoundError(f"Image not found: {image_path}")
         
-        with open(path, "rb") as f:
-            image_data = f.read()
+        # For VEO models, process image with padding if needed
+        if self._is_veo_model() and aspect_ratio:
+            # Load and process image
+            image = Image.open(path)
+            if image.mode != "RGB":
+                image = image.convert("RGB")
+            
+            # Pad image to match target aspect ratio
+            padded_image = self._pad_image_for_veo(image, aspect_ratio)
+            
+            # Convert processed image to bytes
+            buffer = io.BytesIO()
+            padded_image.save(buffer, format="PNG", quality=95)
+            image_data = buffer.getvalue()
+            
+            logger.debug(f"Processed VEO image for {aspect_ratio} aspect ratio")
+        else:
+            # For WAN models or when no aspect ratio specified, use original image
+            with open(path, "rb") as f:
+                image_data = f.read()
         
         return base64.b64encode(image_data).decode("utf-8")
     
-    async def _submit_generation(self, prompt: str, image_b64: str, seed: int) -> str:
+    async def _submit_generation(
+        self,
+        prompt: str,
+        image_b64: str,
+        seed: int,
+        aspect_ratio: Optional[str] = None,
+        duration: Optional[float] = None,
+        resolution: Optional[str] = None,
+        generate_audio: Optional[bool] = None,
+        negative_prompt: Optional[str] = None
+    ) -> str:
         """Submit I2V generation request."""
-        # Build endpoint URL
-        submit_url = f"{self.base_url}/api/v3/wavespeed-ai/{self.model}"
+        # Build endpoint URL based on model type
+        # Handle both enum and string model inputs
+        model_value = self.model.value if hasattr(self.model, 'value') else self.model
+        
+        # Check if this is a Veo 3.1 model (enum or string value)
+        veo_models = [WaveSpeedModel.VEO_3_1_I2V, WaveSpeedModel.VEO_3_1_FAST_I2V]
+        veo_values = [WaveSpeedModel.VEO_3_1_I2V.value, WaveSpeedModel.VEO_3_1_FAST_I2V.value]
+        
+        if self.model in veo_models or self.model in veo_values:
+            # For Veo 3.1 models, use the Google prefix path
+            submit_url = f"{self.base_url}/api/v3/google/{model_value}"
+        else:
+            # For WAN models, use wavespeed-ai prefix
+            submit_url = f"{self.base_url}/api/v3/wavespeed-ai/{model_value}"
         
         payload = {
             "prompt": prompt,
             "image": image_b64,
             "seed": seed
         }
+        
+        # Add Veo 3.1 specific parameters if using Veo models
+        # Check both enum and string value forms
+        veo_models = [WaveSpeedModel.VEO_3_1_I2V, WaveSpeedModel.VEO_3_1_FAST_I2V]
+        veo_values = [WaveSpeedModel.VEO_3_1_I2V.value, WaveSpeedModel.VEO_3_1_FAST_I2V.value]
+        
+        if self.model in veo_models or self.model in veo_values:
+            if aspect_ratio:
+                payload["aspect_ratio"] = aspect_ratio
+            if duration:
+                payload["duration"] = duration
+            if resolution:
+                payload["resolution"] = resolution
+            if generate_audio is not None:
+                payload["generate_audio"] = generate_audio
+            if negative_prompt:
+                payload["negative_prompt"] = negative_prompt
         
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
@@ -238,3 +451,58 @@ class WaveSpeedService:
                 f.write(response.content)
         
         return output_path
+
+
+class Veo31Service(WaveSpeedService):
+    """Convenience service class specifically for Google Veo 3.1 image-to-video generation."""
+    
+    def __init__(self):
+        """Initialize Veo 3.1 service."""
+        super().__init__(model=WaveSpeedModel.VEO_3_1_I2V)
+    
+    async def generate_video(
+        self,
+        prompt: str,
+        image_path: Union[str, Path],
+        seed: int = -1,
+        output_path: Optional[Path] = None,
+        poll_timeout_s: float = 300.0,
+        poll_interval_s: float = 2.0,
+        aspect_ratio: Optional[str] = None,  # Let auto-detection work by default
+        duration: Optional[float] = 8.0,
+        resolution: Optional[str] = "1080p",  # Default to 1080p for Veo 3.1
+        generate_audio: bool = True,  # Default to generating audio
+        negative_prompt: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Generate video using Google Veo 3.1 model with automatic aspect ratio detection.
+        
+        Args:
+            prompt: Text description for video generation
+            image_path: Path to input image file
+            seed: Random seed for reproducibility (-1 for random)
+            output_path: Optional path to save video (if not provided, returns URL)
+            poll_timeout_s: Maximum time to wait for completion
+            poll_interval_s: Time between polling attempts
+            aspect_ratio: Video aspect ratio ("16:9" or "9:16" only). If None, automatically detects best ratio.
+            duration: Video duration in seconds (up to 8 seconds)
+            resolution: Output resolution ("720p" or "1080p", defaults to "1080p")
+            generate_audio: Whether to generate audio (defaults to True)
+            negative_prompt: Negative prompt to avoid certain content
+            
+        Returns:
+            Dictionary with generation results including video URL/path
+        """
+        return await super().generate_video(
+            prompt=prompt,
+            image_path=image_path,
+            seed=seed,
+            output_path=output_path,
+            poll_timeout_s=poll_timeout_s,
+            poll_interval_s=poll_interval_s,
+            aspect_ratio=aspect_ratio,
+            duration=duration,
+            resolution=resolution,
+            generate_audio=generate_audio,
+            negative_prompt=negative_prompt
+        )

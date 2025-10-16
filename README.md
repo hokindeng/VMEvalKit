@@ -24,16 +24,23 @@ pip install -e .
 ## Quick Start
 
 ```python
-from vmevalkit import run_inference
+from vmevalkit.runner.inference import InferenceRunner
+
+# Initialize runner with structured output
+runner = InferenceRunner(output_dir="output")
 
 # Generate video solution
-result = run_inference(
+result = runner.run(
     model_name="luma-ray-2",
-    image_path="data/maze.png",
-    text_prompt="Solve this maze from start to finish"
+    image_path="data/questions/maze_task/maze_0000/first_frame.png",
+    text_prompt="Navigate the green dot through the maze corridors to reach the red flag"
 )
 
-print(f"Video: {result['video_path']}")
+print(f"Video saved to: {result['inference_dir']}")
+# Each inference creates a self-contained folder with:
+# - video/: Generated video file
+# - question/: Input images and prompt  
+# - metadata.json: Complete inference metadata
 ```
 
 ## Supported Models
@@ -60,12 +67,12 @@ All models support **image + text → video** for reasoning evaluation.
 ### Task Pair: The Fundamental Unit
 Every VMEvalKit dataset consists of **Task Pairs** - the basic unit for video reasoning evaluation:
 
-- 📸 **Initial state image** (the reasoning problem)
-- 🎯 **Final state image** (the solution/goal state)  
-- 📝 **Text prompt** (instructions for video model)
-- 📊 **Rich metadata** (difficulty, task-specific parameters, etc.)
+- 📸 **Initial state image** (`first_frame.png` - the reasoning problem)
+- 🎯 **Final state image** (`final_frame.png` - the solution/goal state)  
+- 📝 **Text prompt** (`prompt.txt` - instructions for video model)
+- 📊 **Rich metadata** (`question_metadata.json` - difficulty, task-specific parameters, etc.)
 
-Models must generate videos showing the reasoning process from initial → final state.
+Each task pair is organized in its own folder (`data/questions/{domain}_task/{question_id}/`) containing all four files. Models must generate videos showing the reasoning process from initial → final state.
 
 ## Tasks
 
@@ -95,14 +102,48 @@ VMEvalKit/
 │   ├── core/           # Evaluation framework
 │   ├── tasks/          # Task definitions
 │   └── utils/          # Utilities
-├── data/               # Datasets
+├── data/
+│   └── questions/      # Dataset with per-question folders
+│       ├── vmeval_dataset.json  # Master dataset manifest
+│       ├── chess_task/          # Chess reasoning questions
+│       │   └── chess_0000/      # Individual question folder
+│       │       ├── first_frame.png
+│       │       ├── final_frame.png
+│       │       ├── prompt.txt
+│       │       └── question_metadata.json
+│       ├── maze_task/           # Maze navigation questions
+│       ├── raven_task/          # Pattern completion questions
+│       └── rotation_task/       # 3D rotation questions
+├── output/             # Structured inference outputs
+│   └── <inference_id>/ # Self-contained folders per inference
+│       ├── video/      # Generated video file
+│       ├── question/   # Input images and prompt
+│       └── metadata.json # Complete inference metadata
 ├── examples/           # Example scripts
 └── tests/              # Unit tests
 ```
 
+## Structured Output System
+
+Each inference creates a **self-contained folder** with all relevant data:
+
+```
+output/<model>_<question_id>_<timestamp>/
+├── video/
+│   └── generated_video.mp4    # Output video
+├── question/
+│   ├── first_frame.png        # Input image (sent to model)
+│   ├── final_frame.png        # Reference image (not sent)
+│   ├── prompt.txt             # Text prompt used
+│   └── question_metadata.json # Full question data from dataset
+└── metadata.json              # Complete inference metadata
+```
+
+This structure ensures reproducibility and makes batch analysis easy.
+
 ## Examples
 
-See `examples/simple_inference.py` for more usage patterns.
+See `examples/experiment_2025-10-14.py` for sequential inference across multiple models.
 
 ## Submodules
 
@@ -111,7 +152,6 @@ Initialize after cloning:
 git submodule update --init --recursive
 ```
 
-- **KnowWhat**: Research on knowing-how vs knowing-that
 - **maze-dataset**: Maze datasets for ML evaluation
 - **HunyuanVideo-I2V**: High-quality image-to-video generation (720p)
 - **LTX-Video**: Real-time video generation models
@@ -137,6 +177,69 @@ VMEvalKit supports 36+ models across 9 providers and is designed to easily accom
 - 📚 **Complete Guide**: [docs/ADDING_MODELS.md](docs/ADDING_MODELS.md)
 
 Both API-based and open-source (submodule) integration patterns are supported.
+
+## Running Experiments
+
+### Quick Start
+
+Generate dataset and run experiments:
+
+```bash
+cd /Users/access/VMEvalKit
+source venv/bin/activate
+
+# Generate dataset (if needed)
+python -m vmevalkit.runner.create_dataset --pairs-per-domain 15
+
+# Run experiment (1 task per domain for testing)
+python examples/experiment_2025-10-14.py
+
+# Run all tasks
+python examples/experiment_2025-10-14.py --all-tasks
+```
+
+### Resume Mechanism
+
+The experiment script includes robust resume capability for long-running experiments:
+
+**Features:**
+- 🔄 Sequential execution: one model at a time, one task at a time
+- ⚡ Automatic checkpointing every 5 completed jobs
+- 🛡️ Graceful interruption handling (Ctrl+C saves progress)
+- 📥 Resume from latest or specific experiment
+- 📊 Track completed, failed, and in-progress jobs
+
+**Usage:**
+
+```bash
+# Resume latest interrupted experiment
+python examples/experiment_2025-10-14.py --resume latest
+
+# Resume specific experiment
+python examples/experiment_2025-10-14.py --resume experiment_20241016_143022
+
+# List available checkpoints
+python examples/experiment_2025-10-14.py --list-checkpoints
+
+# Start with custom experiment ID
+python examples/experiment_2025-10-14.py --experiment-id my_test_001
+```
+
+**Command Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--resume <ID or 'latest'>` | Resume a previous experiment |
+| `--no-resume` | Disable resume mechanism |
+| `--experiment-id <ID>` | Set custom experiment ID |
+| `--all-tasks` | Run all tasks instead of 1 per domain |
+| `--list-checkpoints` | List available checkpoints |
+
+**How It Works:**
+- Progress saved to `data/outputs/pilot_experiment/logs/checkpoint_*.json`
+- Completed jobs won't be re-run on resume
+- Failed jobs can be retried
+- Interrupted jobs are automatically retried
 
 ## License
 

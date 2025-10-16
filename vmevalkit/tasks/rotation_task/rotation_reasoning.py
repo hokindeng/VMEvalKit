@@ -4,13 +4,18 @@
 
 This module generates 3D voxel structures (snake-like configurations) and creates
 mental rotation tasks where models must demonstrate spatial reasoning by showing
-how these structures appear when rotated to different viewpoints.
+how these structures appear when the camera rotates horizontally around them.
+
+The task uses:
+- Tilted camera views (20-40° elevation) for clear 3D perspective
+- Horizontal-only rotations with exactly 180° azimuth change for smooth transitions
+- 8-9 voxel structures for easier difficulty level
 
 The task evaluates a model's ability to:
-1. Understand 3D spatial relationships from 2D projections
-2. Mentally rotate objects in 3D space
-3. Generate videos showing smooth rotation transitions
-4. Accurately predict the final appearance after rotation
+1. Understand 3D spatial relationships from tilted 2D projections
+2. Generate smooth horizontal camera rotations around fixed objects
+3. Maintain consistent 3D perspective throughout the rotation
+4. Accurately predict object appearance from different horizontal viewpoints
 
 Author: VMEvalKit Team
 """
@@ -48,6 +53,16 @@ FIGURE_SIZE = (8, 8)     # Matplotlib figure size for rendering
 
 Voxel = Tuple[int, int, int]
 
+# Standardized prompts for rotation tasks (can add variations for experiments)
+PROMPTS = [
+    # Standard prompt with placeholders for dynamic content
+    "A {num_voxels}-block sculpture sits fixed on a table. "
+    "First frame: Your camera is tilted at {elev1}° elevation, viewing from {azim1}° azimuth. "
+    "Final frame: Your camera remains at {elev2}° elevation, but rotates horizontally to {azim2}° azimuth. This is a 180-degree rotation "
+    "Create a smooth video showing the camera's horizontal rotation around the sculpture, and try to maintain the tilted viewing angle throughout.",
+    # Future variations can be added here for prompt experiments
+]
+
 
 class RotationGenerator:
     """Self-contained 3D voxel mental rotation task generator."""
@@ -56,8 +71,8 @@ class RotationGenerator:
         self.generated_positions = []
         
     def generate_tasks(self, num_tasks: int = 50) -> List[Dict[str, Any]]:
-        """Generate 3D mental rotation tasks using built-in voxel generation."""
-        print(f"🎯 Generating {num_tasks} 3D mental rotation tasks...")
+        """Generate 3D mental rotation tasks with tilted views and 180° horizontal rotations."""
+        print(f"🎯 Generating {num_tasks} 3D mental rotation tasks (8-9 voxels, 180° horizontal rotations)...")
         
         if not HAS_DEPENDENCIES:
             raise ImportError("NumPy, matplotlib, and PIL are required for rotation tasks")
@@ -72,27 +87,33 @@ class RotationGenerator:
         while len(voxel_list) < num_tasks and attempts < max_attempts:
             attempts += 1
             try:
+                # Use 8-9 voxels for easier difficulty structures
                 voxels = self._generate_snake(
-                    N=np.random.randint(6, 12), 
-                    Lmin=2, 
-                    Lmax=4,
-                    p_branch=0.35, 
-                    max_deg=4, 
+                    N=np.random.randint(8, 10),  # Only 8 or 9 voxels
+                    Lmin=1, 
+                    Lmax=3,
+                    p_branch=0.2,  # Some branching for variety
+                    max_deg=3, 
                     tries=1000
                 )
 
-                # Skip if rotationally equivalent to its x-flip (too simple)
-                if self._are_rotationally_equivalent(voxels, self._flip_voxels(voxels, axes=("x",))):
+                # Skip structures that are too simple
+                # With more voxels, we want meaningful 3D structures
+                if len(voxels) < 8:
                     continue
 
-                # Generate two different viewing angles with sufficient separation
-                elev1, azim1 = self._sample_view()
-                elev2, azim2 = self._sample_view()
+                # Always use horizontal rotations with tilted views
+                # This ensures clear 3D perspective with smooth horizontal camera movement
+                tilted_elevation = random.randint(20, 40)  # Consistent tilt for both views
                 
-                # Ensure sufficient angle difference for meaningful rotation
-                angle_diff = self._angle_between(elev1, azim1, elev2, azim2)
-                if angle_diff < 30:  # Minimum 30 degree difference
-                    continue
+                # Generate horizontal rotation (same elevation, different azimuth)
+                azim1 = random.randint(0, 359)
+                # Enforce exactly 180 degrees azimuth change
+                rotation_amount = 180
+                azim2 = (azim1 + rotation_amount) % 360
+                
+                elev1, elev2 = tilted_elevation, tilted_elevation  # Same elevation (horizontal rotation)
+                angle_diff = rotation_amount  # The actual horizontal rotation angle
                 
                 # Determine difficulty based on structure complexity and angle difference
                 difficulty = self._assess_difficulty(voxels, angle_diff)
@@ -315,18 +336,6 @@ class RotationGenerator:
                     mats.append(tuple(tuple(r) for r in mat))
         return mats
 
-    def _sample_view(
-        self,
-        elev_range: Tuple[Tuple[int, int], ...] = ((15, 75), (105, 165), (195, 255), (285, 345)),
-        azim_sectors: Tuple[Tuple[int, int], ...] = ((15, 75), (105, 165), (195, 255), (285, 345))
-    ) -> Tuple[int, int]:
-        """Return a random (elev, azim) viewing angle."""
-        elev_sector = random.choice(elev_range)
-        elev = random.uniform(*elev_sector)
-        azim_sector = random.choice(azim_sectors)
-        azim = random.uniform(*azim_sector)
-        return int(elev), int(azim)
-
     def _angle_between(self, elev1: float, azim1: float, elev2: float, azim2: float) -> float:
         """Calculate angle between two viewing directions in degrees."""
         e1, a1 = math.radians(elev1), math.radians(azim1)
@@ -348,29 +357,31 @@ class RotationGenerator:
         """Assess task difficulty based on structure complexity and rotation angle."""
         num_voxels = len(voxels)
         
-        # Calculate structural complexity
-        complexity_score = num_voxels
+        # Base complexity from number of voxels (8-9 range only)
+        # Since we're only using 8-9 voxels, all start with low complexity
+        complexity_score = 2  # All tasks start as easier difficulty
         
-        # Add complexity for non-linear structures
-        if len(set(v[0] for v in voxels)) > 2:  # Spans multiple X coordinates
+        # Add complexity for structures spanning multiple axes
+        axes_used = len(set(v[0] for v in voxels)) + len(set(v[1] for v in voxels)) + len(set(v[2] for v in voxels))
+        if axes_used > 6:  # Structures spanning many coordinates
             complexity_score += 2
-        if len(set(v[1] for v in voxels)) > 2:  # Spans multiple Y coordinates  
-            complexity_score += 2
-        if len(set(v[2] for v in voxels)) > 2:  # Spans multiple Z coordinates
-            complexity_score += 2
-        
-        # Factor in rotation angle
-        if angle_diff > 90:
-            complexity_score += 3
-        elif angle_diff > 60:
-            complexity_score += 2
-        elif angle_diff > 30:
+        elif axes_used > 4:
             complexity_score += 1
         
-        if complexity_score <= 8:
+        # Factor in rotation angle
+        if angle_diff == 180:  # 180-degree rotations show opposite views
+            pass  # No complexity increase
+        elif angle_diff > 60:
+            complexity_score += 2
+        elif angle_diff > 40:
+            complexity_score += 1
+        
+        # Adjusted thresholds for 8-9 voxel range (all tasks are in easier category)
+        # Most tasks will be "easy" due to limited voxel count
+        if complexity_score <= 4:
             return "easy"
-        elif complexity_score <= 12:
-            return "medium"
+        elif complexity_score <= 6:
+            return "medium"  
         else:
             return "hard"
 
@@ -389,21 +400,22 @@ def generate_task_images(task_data: Dict[str, Any], task_id: str, base_dir: str)
     first_view = task_data["first_view"]
     final_view = task_data["final_view"]
     
-    # Generate output paths
-    first_image_path = f"data/generated_rotation/{task_id}_first.png"
-    final_image_path = f"data/generated_rotation/{task_id}_final.png"
+    # Create temporary files that will be moved to per-question folders
+    import tempfile
+    temp_dir = tempfile.mkdtemp()
     
-    # Create output directory
-    output_dir = os.path.join(base_dir, "data/generated_rotation")
-    os.makedirs(output_dir, exist_ok=True)
+    first_temp_path = os.path.join(temp_dir, f"{task_id}_first.png")
+    final_temp_path = os.path.join(temp_dir, f"{task_id}_final.png")
     
     # Generate first view image
-    first_full_path = os.path.join(base_dir, first_image_path)
-    _render_voxel_image(voxels, first_view[0], first_view[1], first_full_path)
+    _render_voxel_image(voxels, first_view[0], first_view[1], first_temp_path)
     
     # Generate final view image  
-    final_full_path = os.path.join(base_dir, final_image_path)
-    _render_voxel_image(voxels, final_view[0], final_view[1], final_full_path)
+    _render_voxel_image(voxels, final_view[0], final_view[1], final_temp_path)
+    
+    # Return temp paths that will be moved by create_dataset.py
+    first_image_path = first_temp_path
+    final_image_path = final_temp_path
     
     return first_image_path, final_image_path
 
@@ -517,18 +529,28 @@ def _process_and_save_image(temp_path: str, final_path: str, image_size: Tuple[i
 
 
 def generate_prompt(task_data: Dict[str, Any]) -> str:
-    """Generate text prompt for the mental rotation task."""
-    angle_diff = task_data["angle_difference"]
-    difficulty = task_data["difficulty"]
+    """Generate simplified text prompt for the mental rotation task."""
+    num_voxels = task_data["num_voxels"]
     
-    base_prompt = "Show the 3D structure rotating from the first viewpoint to the final viewpoint."
+    # Get the actual viewpoint positions
+    elev1, azim1 = task_data["first_view"]
+    elev2, azim2 = task_data["final_view"]
     
-    if difficulty == "easy":
-        return f"{base_prompt} The rotation involves a {angle_diff:.0f}° change in viewing angle."
-    elif difficulty == "medium":
-        return f"{base_prompt} Demonstrate the smooth rotation transition across {angle_diff:.0f}° of viewing angle change."
-    else:
-        return f"{base_prompt} Show the complex 3D rotation sequence needed to transform the viewing perspective by {angle_diff:.0f}°."
+    # Since we're now using horizontal rotations with tilted views, we can emphasize this
+    rotation_amount = abs(azim2 - azim1)
+    if rotation_amount > 180:
+        rotation_amount = 360 - rotation_amount
+    
+    # Use standardized prompt template from PROMPTS list
+    prompt = PROMPTS[0].format(
+        num_voxels=num_voxels,
+        elev1=elev1,
+        azim1=azim1,
+        elev2=elev2,
+        azim2=azim2
+    )
+    
+    return prompt
 
 
 def create_task_pair(task_data: Dict[str, Any], task_id: str) -> Dict[str, Any]:
@@ -566,9 +588,9 @@ def create_task_pair(task_data: Dict[str, Any], task_id: str) -> Dict[str, Any]:
 
 
 def create_dataset(num_samples: int = 50) -> Dict[str, Any]:
-    """Create complete mental rotation dataset."""
+    """Create mental rotation dataset with tilted views and 180° horizontal rotations (8-9 voxels only for easier difficulty)."""
     
-    print(f"🎯 Creating 3D mental rotation dataset with {num_samples} samples...")
+    print(f"🎯 Creating 3D mental rotation dataset with {num_samples} samples (8-9 voxels, 180° horizontal rotations)...")
     
     # Generate tasks
     generator = RotationGenerator()
@@ -585,39 +607,13 @@ def create_dataset(num_samples: int = 50) -> Dict[str, Any]:
     # Create dataset
     dataset = {
         "name": "rotation_tasks",
-        "description": f"3D mental rotation reasoning tasks for video model evaluation ({len(pairs)} pairs)",
+        "description": f"3D mental rotation tasks with 8-9 voxels, tilted views (20-40° elevation) and 180° horizontal rotations for video model evaluation ({len(pairs)} pairs)",
         "pairs": pairs
     }
     
-    # Save dataset
-    base_dir = os.path.join(os.path.dirname(__file__), '..', '..', '..')
-    dataset_dir = os.path.join(base_dir, "data/rotation_tasks")
-    os.makedirs(dataset_dir, exist_ok=True)
-    output_path = os.path.join(dataset_dir, "rotation_tasks.json")
-    
-    with open(output_path, 'w') as f:
-        json.dump(dataset, f, indent=2)
-    
-    print(f"✅ Saved dataset: {output_path}")
+    # Don't save to intermediate folder anymore - will be handled by create_dataset.py
     return dataset
 
 
-def main():
-    """Generate 3D mental rotation dataset."""
-    if not HAS_DEPENDENCIES:
-        print("❌ Cannot run - missing required dependencies (numpy, matplotlib, PIL)")
-        print("Please install with: pip install numpy matplotlib pillow")
-        return
-    
-    dataset = create_dataset(num_samples=50)
-    print(f"🚀 3D mental rotation reasoning dataset ready!")
-    print(f"📊 Dataset contains {len(dataset['pairs'])} rotation tasks")
-    
-    # Print difficulty distribution
-    difficulties = [pair["difficulty"] for pair in dataset["pairs"]]
-    difficulty_counts = {d: difficulties.count(d) for d in ["easy", "medium", "hard"]}
-    print(f"📈 Difficulty distribution: {difficulty_counts}")
-
-
-if __name__ == "__main__":
-    main()
+# Dataset creation should only be done via vmevalkit/runner/create_dataset.py
+# This module only provides the create_dataset() function as an API
