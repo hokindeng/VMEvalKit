@@ -243,4 +243,4 @@ python examples/experiment_2025-10-14.py --experiment-id my_test_001
 
 ## License
 
-MIT
+Apache 2.0
