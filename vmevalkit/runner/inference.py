@@ -20,7 +20,7 @@ import os
 import asyncio
 import shutil
 from pathlib import Path
-from typing import Dict, Any, Optional, Union
+from typing import Dict, Any, Optional, Union, List
 from datetime import datetime
 import json
 
@@ -1129,8 +1129,11 @@ class InferenceRunner:
             self._save_metadata(inference_dir, error_result, question_data)
             self._log_run(run_id, error_result)
             
+            # Clean up folder if no video was generated
+            self._cleanup_failed_folder(inference_dir)
+            
             print(f"\n❌ Inference failed: {e}")
-            print(f"   Error details saved to: {inference_dir}/metadata.json")
+            print(f"   Folder cleaned up: {inference_dir}")
             
             return error_result
     
@@ -1240,6 +1243,84 @@ class InferenceRunner:
                 else:
                     clean[key] = value
         return clean
+    
+    def _cleanup_failed_folder(self, inference_dir: Path):
+        """
+        Clean up folder if video generation failed.
+        Only removes folder if video directory is empty or missing.
+        
+        Args:
+            inference_dir: Path to inference directory
+        """
+        import shutil
+        
+        video_dir = inference_dir / "video"
+        
+        # Check if video directory exists and has content
+        if video_dir.exists():
+            video_files = list(video_dir.glob("*.mp4")) + list(video_dir.glob("*.webm"))
+            if video_files:
+                # Keep folder if it has video files
+                return
+        
+        # Remove the entire inference directory if no videos were generated
+        if inference_dir.exists():
+            shutil.rmtree(inference_dir)
+            print(f"   Cleaned up empty folder: {inference_dir.name}")
+    
+    def _cleanup_all_failed_experiments(self, dry_run: bool = True) -> List[Path]:
+        """
+        Internal utility to clean up all failed experiment folders (those without video files).
+        This is only needed for cleaning up old folders from before automatic cleanup was implemented.
+        New failures are cleaned up automatically.
+        
+        Args:
+            dry_run: If True, only list folders that would be deleted without actually deleting
+            
+        Returns:
+            List of cleaned up folder paths
+        """
+        import shutil
+        
+        cleaned_folders = []
+        
+        # Check all subdirectories in output_dir
+        for inference_dir in self.output_dir.iterdir():
+            if not inference_dir.is_dir():
+                continue
+            
+            # Skip special directories
+            if inference_dir.name in ['logs', 'checkpoints', '.git']:
+                continue
+            
+            video_dir = inference_dir / "video"
+            
+            # Check if this is an incomplete folder
+            is_incomplete = False
+            
+            if not video_dir.exists():
+                # No video directory at all
+                is_incomplete = True
+            else:
+                # Check if video directory has any video files
+                video_files = list(video_dir.glob("*.mp4")) + list(video_dir.glob("*.webm"))
+                if not video_files:
+                    is_incomplete = True
+            
+            if is_incomplete:
+                cleaned_folders.append(inference_dir)
+                if dry_run:
+                    print(f"Would delete: {inference_dir.name}")
+                else:
+                    shutil.rmtree(inference_dir)
+                    print(f"Deleted: {inference_dir.name}")
+        
+        if cleaned_folders:
+            print(f"\n{'Would clean' if dry_run else 'Cleaned'} {len(cleaned_folders)} empty folders")
+        else:
+            print("\nNo empty folders found")
+        
+        return cleaned_folders
     
     def list_models(self) -> Dict[str, str]:
         """List available models and their descriptions."""
