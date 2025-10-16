@@ -33,7 +33,6 @@ from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime
 import traceback
 from PIL import Image
-import threading
 import time
 import signal
 import atexit
@@ -112,9 +111,6 @@ class ProgressTracker:
         # Initialize or load progress
         self.progress = self._load_progress()
         
-        # Lock for thread-safe operations
-        self.lock = threading.Lock()
-        
         # Register cleanup handlers
         atexit.register(self.save_progress)
         signal.signal(signal.SIGINT, self._handle_interrupt)
@@ -160,25 +156,24 @@ class ProgressTracker:
     
     def save_progress(self, force: bool = False):
         """Save current progress to checkpoint file."""
-        with self.lock:
-            try:
-                self.progress["last_update"] = datetime.now().isoformat()
+        try:
+            self.progress["last_update"] = datetime.now().isoformat()
+            
+            # Atomic write (write to temp, then rename)
+            temp_file = self.checkpoint_file.with_suffix('.tmp')
+            with open(temp_file, 'w') as f:
+                json.dump(self.progress, f, indent=2)
+            temp_file.replace(self.checkpoint_file)
+            
+            # Also save detailed progress log
+            with open(self.progress_file, 'w') as f:
+                json.dump(self.progress, f, indent=2)
                 
-                # Atomic write (write to temp, then rename)
-                temp_file = self.checkpoint_file.with_suffix('.tmp')
-                with open(temp_file, 'w') as f:
-                    json.dump(self.progress, f, indent=2)
-                temp_file.replace(self.checkpoint_file)
+            if force:
+                print(f"💾 Progress saved to: {self.checkpoint_file}")
                 
-                # Also save detailed progress log
-                with open(self.progress_file, 'w') as f:
-                    json.dump(self.progress, f, indent=2)
-                    
-                if force:
-                    print(f"💾 Progress saved to: {self.checkpoint_file}")
-                    
-            except Exception as e:
-                print(f"⚠️  Failed to save progress: {e}")
+        except Exception as e:
+            print(f"⚠️  Failed to save progress: {e}")
     
     def _handle_interrupt(self, signum, frame):
         """Handle interruption signals gracefully."""
@@ -197,71 +192,65 @@ class ProgressTracker:
         Returns:
             True if job should proceed, False if already completed
         """
-        with self.lock:
-            # Check if already completed
-            if job_id in self.progress["jobs_completed"]:
-                return False
-            
-            # Mark as in progress
-            if job_id not in self.progress["jobs_in_progress"]:
-                self.progress["jobs_in_progress"].append(job_id)
-            
-            return True
+        # Check if already completed
+        if job_id in self.progress["jobs_completed"]:
+            return False
+        
+        # Mark as in progress
+        if job_id not in self.progress["jobs_in_progress"]:
+            self.progress["jobs_in_progress"].append(job_id)
+        
+        return True
     
     def job_completed(self, job_id: str, result: Dict[str, Any]):
         """Mark a job as completed."""
-        with self.lock:
-            # Remove from in-progress
-            if job_id in self.progress["jobs_in_progress"]:
-                self.progress["jobs_in_progress"].remove(job_id)
-            
-            # Add to completed (avoid duplicates)
-            if job_id not in self.progress["jobs_completed"]:
-                self.progress["jobs_completed"].append(job_id)
-            
-            # Save periodically (every 5 completions)
-            if len(self.progress["jobs_completed"]) % 5 == 0:
-                self.save_progress()
+        # Remove from in-progress
+        if job_id in self.progress["jobs_in_progress"]:
+            self.progress["jobs_in_progress"].remove(job_id)
+        
+        # Add to completed (avoid duplicates)
+        if job_id not in self.progress["jobs_completed"]:
+            self.progress["jobs_completed"].append(job_id)
+        
+        # Save periodically (every 5 completions)
+        if len(self.progress["jobs_completed"]) % 5 == 0:
+            self.save_progress()
     
     def job_failed(self, job_id: str, error: str):
         """Mark a job as failed."""
-        with self.lock:
-            # Remove from in-progress
-            if job_id in self.progress["jobs_in_progress"]:
-                self.progress["jobs_in_progress"].remove(job_id)
-            
-            # Add to failed with error info
-            failed_info = {
-                "job_id": job_id,
-                "error": error,
-                "timestamp": datetime.now().isoformat()
-            }
-            
-            # Update or add to failed list
-            existing_failed = [j for j in self.progress["jobs_failed"] 
-                              if isinstance(j, dict) and j.get("job_id") == job_id]
-            if not existing_failed:
-                self.progress["jobs_failed"].append(failed_info)
+        # Remove from in-progress
+        if job_id in self.progress["jobs_in_progress"]:
+            self.progress["jobs_in_progress"].remove(job_id)
+        
+        # Add to failed with error info
+        failed_info = {
+            "job_id": job_id,
+            "error": error,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        # Update or add to failed list
+        existing_failed = [j for j in self.progress["jobs_failed"] 
+                          if isinstance(j, dict) and j.get("job_id") == job_id]
+        if not existing_failed:
+            self.progress["jobs_failed"].append(failed_info)
     
     def should_skip_job(self, job_id: str) -> bool:
         """Check if a job should be skipped (already completed)."""
-        with self.lock:
-            return job_id in self.progress["jobs_completed"]
+        return job_id in self.progress["jobs_completed"]
     
     def get_resume_stats(self) -> Dict[str, int]:
         """Get statistics for resume."""
-        with self.lock:
-            return {
-                "completed": len(self.progress["jobs_completed"]),
-                "failed": len(self.progress["jobs_failed"]),
-                "in_progress": len(self.progress["jobs_in_progress"])
-            }
+        return {
+            "completed": len(self.progress["jobs_completed"]),
+            "failed": len(self.progress["jobs_failed"]),
+            "in_progress": len(self.progress["jobs_in_progress"])
+        }
     
     def update_statistics(self, stats: Dict[str, Any]):
         """Update experiment statistics."""
-        with self.lock:
-            self.progress["statistics"] = stats
-            self.save_progress()
+        self.progress["statistics"] = stats
+        self.save_progress()
 
 
 # ========================================

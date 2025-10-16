@@ -284,7 +284,7 @@ class SoraService:
             job = response.json()
             return job["id"]
     
-    async def _poll_video_job(self, video_id: str, max_wait_time: int = 600) -> Dict[str, Any]:
+    async def _poll_video_job(self, video_id: str, max_wait_time: int = 900) -> Dict[str, Any]:  # 15 minute timeout
         """Poll video generation job until completion."""
         import httpx
         
@@ -335,7 +335,7 @@ class SoraService:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         headers = {"Authorization": f"Bearer {self.api_key}"}
         
-        async with httpx.AsyncClient(timeout=600.0) as client:
+        async with httpx.AsyncClient(timeout=1800.0) as client:  # 30 minute timeout
             async with client.stream(
                 "GET",
                 f"{self.base_url}/videos/{video_id}/content",
