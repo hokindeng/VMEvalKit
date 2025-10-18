@@ -236,12 +236,16 @@ def main():
         if args.dry_run:
             print("\n  🔍 [DRY RUN] Would delete these empty folders")
         else:
-            response = input("\n⚠️  Delete empty folders? [y/N]: ")
-            if response.lower() == 'y':
-                for folder in empty_folders:
-                    shutil.rmtree(folder)
-                    print(f"  🗑️  Deleted: {folder.name}")
-                print(f"\n✅ Deleted {len(empty_folders)} empty folder(s)")
+            if not args.yes:
+                response = input("\n⚠️  Delete empty folders? [y/N]: ")
+                if response.lower() != 'y':
+                    print("  Skipping empty folder deletion")
+                    return
+            
+            for folder in empty_folders:
+                shutil.rmtree(folder)
+                print(f"  🗑️  Deleted: {folder.name}")
+            print(f"\n✅ Deleted {len(empty_folders)} empty folder(s)")
     
     if not flat_folders:
         print("\n✅ No flat folders found to migrate!")
@@ -251,7 +255,7 @@ def main():
     for folder in sorted(flat_folders):
         print(f"  - {folder.name}")
     
-    if not args.dry_run:
+    if not args.dry_run and not args.yes:
         response = input("\n⚠️  Proceed with migration? [y/N]: ")
         if response.lower() != 'y':
             print("❌ Migration cancelled")
