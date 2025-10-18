@@ -15,17 +15,20 @@ def scan_all_outputs(output_dir: Path) -> List[Dict[str, Any]]:
     
     Structure: output_dir/{model}/{domain}_task/{task_id}/{run_id}/
     
+    Deduplicates: If multiple runs exist for the same (model, domain, task_id),
+    only keeps the most recent one.
+    
     Args:
         output_dir: Base output directory
         
     Returns:
-        List of inference result dictionaries
+        List of inference result dictionaries (deduplicated)
     """
-    results = []
+    all_results = []
     
     if not output_dir.exists():
         print(f"Warning: Output directory does not exist: {output_dir}")
-        return results
+        return all_results
     
     # Scan: {model}/{domain}_task/{task_id}/{run_id}/
     for model_dir in output_dir.iterdir():
@@ -52,21 +55,32 @@ def scan_all_outputs(output_dir: Path) -> List[Dict[str, Any]]:
                 
                 task_id = task_dir.name
                 
-                # Look for run directories
-                for run_dir in task_dir.iterdir():
-                    if not run_dir.is_dir():
-                        continue
+                # Look for run directories and find the most recent one
+                run_dirs = [d for d in task_dir.iterdir() if d.is_dir()]
+                
+                if not run_dirs:
+                    continue
+                
+                # Sort by modification time, most recent first
+                run_dirs.sort(key=lambda d: d.stat().st_mtime, reverse=True)
+                
+                # Only use the most recent run (deduplication)
+                most_recent_run = run_dirs[0]
+                
+                # Load data from filesystem only
+                result = load_from_filesystem(most_recent_run, model_name, domain, task_id)
+                if result:
+                    all_results.append(result)
                     
-                    # Load data from filesystem only
-                    result = load_from_filesystem(run_dir, model_name, domain, task_id)
-                    if result:
-                        results.append(result)
+                    # Log if there were duplicates
+                    if len(run_dirs) > 1:
+                        print(f"Note: Found {len(run_dirs)} runs for {model_name}/{domain}/{task_id}, using most recent: {most_recent_run.name}")
     
     # Sort by folder modification time (most recent first)
-    results.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
+    all_results.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
     
-    print(f"Found {len(results)} inference results")
-    return results
+    print(f"Found {len(all_results)} unique inference results (deduplicated)")
+    return all_results
 
 
 def load_from_filesystem(run_dir: Path, model_name: str, domain: str, task_id: str) -> Optional[Dict[str, Any]]:

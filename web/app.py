@@ -20,10 +20,6 @@ app.config['JSON_SORT_KEYS'] = False
 # Import data loader utilities
 from utils.data_loader import (
     scan_all_outputs,
-    get_model_statistics,
-    get_domain_statistics,
-    get_inference_details,
-    get_comparison_data,
     get_hierarchical_data
 )
 
@@ -63,135 +59,6 @@ def index():
         return render_template('error.html', error=str(e)), 500
 
 
-@app.route('/model/<model_name>')
-def model_view(model_name):
-    """View all results for a specific model."""
-    try:
-        all_results = scan_all_outputs(app.config['OUTPUT_DIR'])
-        
-        # Filter by model
-        model_results = [r for r in all_results if r.get('model') == model_name]
-        
-        if not model_results:
-            return render_template('error.html', error=f'No results found for model: {model_name}'), 404
-        
-        # Get domain breakdown for this model
-        domain_breakdown = {}
-        for result in model_results:
-            domain = result.get('domain', 'unknown')
-            if domain not in domain_breakdown:
-                domain_breakdown[domain] = {'total': 0, 'success': 0, 'failed': 0}
-            domain_breakdown[domain]['total'] += 1
-            if result.get('success', False):
-                domain_breakdown[domain]['success'] += 1
-            else:
-                domain_breakdown[domain]['failed'] += 1
-        
-        return render_template(
-            'model.html',
-            model_name=model_name,
-            results=model_results,
-            domain_breakdown=domain_breakdown,
-            total_results=len(model_results)
-        )
-    except Exception as e:
-        return render_template('error.html', error=str(e)), 500
-
-
-@app.route('/domain/<domain_name>')
-def domain_view(domain_name):
-    """View all results for a specific domain."""
-    try:
-        all_results = scan_all_outputs(app.config['OUTPUT_DIR'])
-        
-        # Filter by domain
-        domain_results = [r for r in all_results if r.get('domain') == domain_name]
-        
-        if not domain_results:
-            return render_template('error.html', error=f'No results found for domain: {domain_name}'), 404
-        
-        # Get model breakdown for this domain
-        model_breakdown = {}
-        for result in domain_results:
-            model = result.get('model', 'unknown')
-            if model not in model_breakdown:
-                model_breakdown[model] = {'total': 0, 'success': 0, 'failed': 0}
-            model_breakdown[model]['total'] += 1
-            if result.get('success', False):
-                model_breakdown[model]['success'] += 1
-            else:
-                model_breakdown[model]['failed'] += 1
-        
-        return render_template(
-            'domain.html',
-            domain_name=domain_name,
-            results=domain_results,
-            model_breakdown=model_breakdown,
-            total_results=len(domain_results)
-        )
-    except Exception as e:
-        return render_template('error.html', error=str(e)), 500
-
-
-@app.route('/task/<task_id>')
-def task_view(task_id):
-    """View all results for a specific task across all models."""
-    try:
-        all_results = scan_all_outputs(app.config['OUTPUT_DIR'])
-        
-        # Filter by task_id
-        task_results = [r for r in all_results if r.get('task_id') == task_id]
-        
-        if not task_results:
-            return render_template('error.html', error=f'No results found for task: {task_id}'), 404
-        
-        # Get the task metadata from the first result
-        task_metadata = task_results[0].get('question_metadata', {})
-        
-        return render_template(
-            'task.html',
-            task_id=task_id,
-            task_metadata=task_metadata,
-            results=task_results,
-            total_results=len(task_results)
-        )
-    except Exception as e:
-        return render_template('error.html', error=str(e)), 500
-
-
-@app.route('/inference/<path:inference_id>')
-def inference_view(inference_id):
-    """View detailed results for a specific inference."""
-    try:
-        details = get_inference_details(app.config['OUTPUT_DIR'], inference_id)
-        
-        if not details:
-            return render_template('error.html', error=f'Inference not found: {inference_id}'), 404
-        
-        return render_template(
-            'inference.html',
-            inference_id=inference_id,
-            details=details
-        )
-    except Exception as e:
-        return render_template('error.html', error=str(e)), 500
-
-
-@app.route('/compare')
-def compare_view():
-    """Compare results across models and tasks."""
-    try:
-        all_results = scan_all_outputs(app.config['OUTPUT_DIR'])
-        comparison_data = get_comparison_data(all_results)
-        
-        return render_template(
-            'compare.html',
-            comparison_data=comparison_data
-        )
-    except Exception as e:
-        return render_template('error.html', error=str(e)), 500
-
-
 @app.route('/api/results')
 def api_results():
     """API endpoint to get all results as JSON."""
@@ -214,23 +81,6 @@ def api_results():
         return jsonify({
             'total': len(filtered_results),
             'results': filtered_results
-        })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
-@app.route('/api/statistics')
-def api_statistics():
-    """API endpoint to get statistics."""
-    try:
-        all_results = scan_all_outputs(app.config['OUTPUT_DIR'])
-        model_stats = get_model_statistics(all_results)
-        domain_stats = get_domain_statistics(all_results)
-        
-        return jsonify({
-            'models': model_stats,
-            'domains': domain_stats,
-            'total_inferences': len(all_results)
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500

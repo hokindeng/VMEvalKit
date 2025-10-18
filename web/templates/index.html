@@ -12,26 +12,26 @@
 {% for model, domains in hierarchy.items() %}
 <section class="model-section">
     <div class="model-header" onclick="toggleSection('model-{{ loop.index }}')">
-        <h2>
-            <span class="expand-icon" id="icon-model-{{ loop.index }}">▼</span>
+                <h2>
+                    <span class="expand-icon" id="icon-model-{{ loop.index }}">▶</span>
             🤖 {{ model }}
             <span class="badge">{{ domains.values()|map('length')|sum }} tasks</span>
         </h2>
     </div>
     
-    <div class="model-content" id="model-{{ loop.index }}" style="display: block;">
+    <div class="model-content" id="model-{{ loop.index }}" style="display: none;">
         {% for domain, tasks in domains.items() %}
         <div class="domain-section">
             <div class="domain-header" onclick="toggleSection('domain-{{ loop.index0 }}-{{ loop.index }}')">
                 <h3>
-                    <span class="expand-icon" id="icon-domain-{{ loop.index0 }}-{{ loop.index }}">▼</span>
+                    <span class="expand-icon" id="icon-domain-{{ loop.index0 }}-{{ loop.index }}">▶</span>
                     {% if domain == 'chess' %}♟️{% elif domain == 'maze' %}🌀{% elif domain == 'raven' %}🧩{% elif domain == 'rotation' %}🔄{% elif domain == 'sudoku' %}🔢{% else %}📝{% endif %}
                     {{ domain|title }}
                     <span class="badge">{{ tasks|length }} tasks</span>
                 </h3>
             </div>
             
-            <div class="domain-content" id="domain-{{ loop.index0 }}-{{ loop.index }}" style="display: block;">
+            <div class="domain-content" id="domain-{{ loop.index0 }}-{{ loop.index }}" style="display: none;">
                 <div class="tasks-grid">
                     {% for task in tasks %}
                     <div class="task-card">

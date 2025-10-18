@@ -190,8 +190,8 @@ body {
 /* Tasks Grid */
 .tasks-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-    gap: 1.5rem;
+    grid-template-columns: repeat(auto-fill, minmax(450px, 1fr));
+    gap: 2rem;
 }
 
 /* Task Card */
@@ -251,22 +251,31 @@ body {
 
 .task-image {
     width: 100%;
+    max-width: 600px;
+    height: auto;
     border-radius: 4px;
     border: 1px solid var(--border);
+    display: block;
+    margin: 0 auto;
 }
 
 .task-prompt {
     margin: 0;
     line-height: 1.6;
     color: var(--text);
-    font-size: 0.9rem;
+    font-size: 0.95rem;
 }
 
 .task-video {
     width: 100%;
+    max-width: 800px;
+    height: auto;
+    aspect-ratio: 16 / 9;
     border-radius: 4px;
     border: 1px solid var(--border);
     background: #000;
+    display: block;
+    margin: 0 auto;
 }
 
 .task-error {
