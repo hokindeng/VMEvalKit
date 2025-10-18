@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block title %}Compare - VMEvalKit{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>⚖️ Model Comparison</h1>
+    <p class="subtitle">Compare video generation results across all models and tasks</p>
+</div>
+
+<section class="section">
+    <div class="comparison-matrix-container">
+        <div class="comparison-matrix-controls">
+            <button class="btn" onclick="toggleAllVideos()">▶️ Play All</button>
+            <button class="btn" onclick="pauseAllVideos()">⏸️ Pause All</button>
+        </div>
+        
+        <div class="comparison-matrix">
+            <table class="matrix-table">
+                <thead>
+                    <tr>
+                        <th class="matrix-corner">Task / Model</th>
+                        {% for model in comparison_data.models %}
+                        <th class="matrix-model-header">{{ model }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for task in comparison_data.tasks %}
+                    <tr>
+                        <td class="matrix-task-header">
+                            <a href="/task/{{ task }}">{{ task }}</a>
+                        </td>
+                        {% for model in comparison_data.models %}
+                        <td class="matrix-cell">
+                            {% if task in comparison_data.task_model_grid and model in comparison_data.task_model_grid[task] %}
+                                {% set cell_data = comparison_data.task_model_grid[task][model] %}
+                                {% if cell_data.success and cell_data.video_path %}
+                                <div class="matrix-video-container">
+                                    <video class="matrix-video" preload="metadata" loop muted>
+                                        <source src="{{ url_for('serve_video', video_path=cell_data.video_path.replace(config.OUTPUT_DIR|string + '/', '')) }}" type="video/mp4">
+                                    </video>
+                                    <div class="matrix-overlay">
+                                        <span class="play-btn" onclick="toggleVideo(this)">▶️</span>
+                                        <span class="duration-badge">{{ cell_data.duration|duration_format }}</span>
+                                    </div>
+                                </div>
+                                {% else %}
+                                <div class="matrix-no-video">
+                                    <span class="status-icon">❌</span>
+                                    <span class="status-text">Failed</span>
+                                </div>
+                                {% endif %}
+                            {% else %}
+                            <div class="matrix-no-video">
+                                <span class="status-icon">➖</span>
+                                <span class="status-text">N/A</span>
+                            </div>
+                            {% endif %}
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+
+<script>
+function toggleVideo(button) {
+    const container = button.closest('.matrix-video-container');
+    const video = container.querySelector('video');
+    
+    if (video.paused) {
+        video.play();
+        button.textContent = '⏸️';
+    } else {
+        video.pause();
+        button.textContent = '▶️';
+    }
+}
+
+function toggleAllVideos() {
+    document.querySelectorAll('.matrix-video').forEach(video => {
+        video.play();
+        const btn = video.parentElement.querySelector('.play-btn');
+        if (btn) btn.textContent = '⏸️';
+    });
+}
+
+function pauseAllVideos() {
+    document.querySelectorAll('.matrix-video').forEach(video => {
+        video.pause();
+        const btn = video.parentElement.querySelector('.play-btn');
+        if (btn) btn.textContent = '▶️';
+    });
+}
+</script>
+
+{% endblock %}
+

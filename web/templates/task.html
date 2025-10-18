@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block title %}{{ task_id }} - VMEvalKit{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="breadcrumb">
+        <a href="/">Dashboard</a> / <a href="/domain/{{ task_metadata.domain }}">{{ task_metadata.domain|title }}</a> / <span>{{ task_id }}</span>
+    </div>
+    <h1>📝 {{ task_id }}</h1>
+    <p class="subtitle">Comparison across {{ total_results }} models</p>
+</div>
+
+<!-- Task Metadata -->
+{% if task_metadata %}
+<section class="section">
+    <h2>📋 Task Information</h2>
+    <div class="metadata-card">
+        <div class="metadata-grid">
+            <div class="metadata-item">
+                <span class="metadata-label">Domain:</span>
+                <span class="metadata-value">
+                    {% if task_metadata.domain == 'chess' %}♟️{% elif task_metadata.domain == 'maze' %}🌀{% elif task_metadata.domain == 'raven' %}🧩{% elif task_metadata.domain == 'rotation' %}🔄{% elif task_metadata.domain == 'sudoku' %}🔢{% else %}📝{% endif %}
+                    {{ task_metadata.domain|title }}
+                </span>
+            </div>
+            {% if task_metadata.difficulty %}
+            <div class="metadata-item">
+                <span class="metadata-label">Difficulty:</span>
+                <span class="metadata-value badge {% if task_metadata.difficulty == 'easy' %}success{% elif task_metadata.difficulty == 'medium' %}warning{% else %}danger{% endif %}">
+                    {{ task_metadata.difficulty|title }}
+                </span>
+            </div>
+            {% endif %}
+            {% if task_metadata.task_category %}
+            <div class="metadata-item">
+                <span class="metadata-label">Category:</span>
+                <span class="metadata-value">{{ task_metadata.task_category }}</span>
+            </div>
+            {% endif %}
+        </div>
+        {% if task_metadata.prompt %}
+        <div class="metadata-prompt">
+            <h3>Prompt:</h3>
+            <p>{{ task_metadata.prompt }}</p>
+        </div>
+        {% endif %}
+    </div>
+</section>
+{% endif %}
+
+<!-- Model Comparison -->
+<section class="section">
+    <h2>🎬 Generated Videos by Model</h2>
+    <div class="comparison-grid">
+        {% for result in results %}
+        <div class="comparison-card {% if not result.success %}failed{% endif %}">
+            <div class="comparison-header">
+                <h3>{{ result.model }}</h3>
+                <span class="status-badge {% if result.success %}success{% else %}danger{% endif %}">
+                    {% if result.success %}✅ Success{% else %}❌ Failed{% endif %}
+                </span>
+            </div>
+            
+            <div class="comparison-content">
+                <!-- Input Image -->
+                {% if result.first_frame %}
+                <div class="comparison-section">
+                    <h4>Input Image</h4>
+                    <img src="{{ url_for('serve_image', image_path=result.first_frame.replace(config.OUTPUT_DIR|string + '/', '')) }}" 
+                         alt="First frame" class="comparison-image">
+                </div>
+                {% endif %}
+                
+                <!-- Generated Video -->
+                {% if result.video_path and result.success %}
+                <div class="comparison-section">
+                    <h4>Generated Video</h4>
+                    <video controls preload="metadata" class="comparison-video">
+                        <source src="{{ url_for('serve_video', video_path=result.video_path.replace(config.OUTPUT_DIR|string + '/', '')) }}" type="video/mp4">
+                        Your browser does not support video playback.
+                    </video>
+                </div>
+                {% endif %}
+                
+                <!-- Target Image -->
+                {% if result.final_frame %}
+                <div class="comparison-section">
+                    <h4>Target State</h4>
+                    <img src="{{ url_for('serve_image', image_path=result.final_frame.replace(config.OUTPUT_DIR|string + '/', '')) }}" 
+                         alt="Final frame" class="comparison-image">
+                </div>
+                {% endif %}
+            </div>
+            
+            <div class="comparison-meta">
+                {% if result.duration_seconds %}
+                <span class="meta-item">
+                    <span class="meta-icon">⏱️</span>
+                    {{ result.duration_seconds|duration_format }}
+                </span>
+                {% endif %}
+                <span class="meta-item">
+                    <span class="meta-icon">📅</span>
+                    {{ result.timestamp|datetime_format('%Y-%m-%d %H:%M') }}
+                </span>
+            </div>
+            
+            {% if result.error and not result.success %}
+            <div class="error-message">
+                <strong>Error:</strong> {{ result.error[:150] }}{% if result.error|length > 150 %}...{% endif %}
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</section>
+
+{% endblock %}
+

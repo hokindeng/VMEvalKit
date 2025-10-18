@@ -1,0 +1,15 @@
+# VMEvalKit Web Dashboard Requirements
+
+# Core web framework
+Flask==3.0.0
+Werkzeug==3.0.1
+
+# For better development server (optional but recommended)
+gunicorn==21.2.0
+
+# For CORS support if needed
+Flask-CORS==4.0.0
+
+# Standard library dependencies (inherited from main project)
+python-dotenv>=1.0.0
+

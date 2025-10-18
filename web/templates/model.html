@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block title %}{{ model_name }} - VMEvalKit{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="breadcrumb">
+        <a href="/">Dashboard</a> / <span>{{ model_name }}</span>
+    </div>
+    <h1>🤖 {{ model_name }}</h1>
+    <p class="subtitle">{{ total_results }} inference results</p>
+</div>
+
+<!-- Domain Breakdown -->
+<section class="section">
+    <h2>📊 Performance by Domain</h2>
+    <div class="table-container">
+        <table class="results-table">
+            <thead>
+                <tr>
+                    <th>Domain</th>
+                    <th>Total</th>
+                    <th>✅ Success</th>
+                    <th>❌ Failed</th>
+                    <th>Success Rate</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for domain, stats in domain_breakdown.items() %}
+                <tr>
+                    <td><strong>{{ domain|title }}</strong></td>
+                    <td>{{ stats.total }}</td>
+                    <td class="success-text">{{ stats.success }}</td>
+                    <td class="danger-text">{{ stats.failed }}</td>
+                    <td>
+                        {% set success_rate = (stats.success / stats.total * 100) if stats.total > 0 else 0 %}
+                        <div class="progress-bar">
+                            <div class="progress-fill {% if success_rate >= 80 %}success{% elif success_rate >= 50 %}warning{% else %}danger{% endif %}" 
+                                 style="width: {{ success_rate }}%"></div>
+                        </div>
+                        <span class="progress-label">{{ success_rate|round(1) }}%</span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<!-- All Results -->
+<section class="section">
+    <h2>📹 All Generated Videos</h2>
+    <div class="results-grid">
+        {% for result in results %}
+        <div class="result-card {% if not result.success %}failed{% endif %}">
+            <div class="result-header">
+                <span class="badge">
+                    {% if result.domain == 'chess' %}♟️{% elif result.domain == 'maze' %}🌀{% elif result.domain == 'raven' %}🧩{% elif result.domain == 'rotation' %}🔄{% elif result.domain == 'sudoku' %}🔢{% else %}📝{% endif %}
+                    {{ result.domain|title }}
+                </span>
+                <span class="status-badge {% if result.success %}success{% else %}danger{% endif %}">
+                    {% if result.success %}✅{% else %}❌{% endif %}
+                </span>
+            </div>
+            {% if result.video_path and result.success %}
+            <div class="result-video">
+                <video controls preload="metadata">
+                    <source src="{{ url_for('serve_video', video_path=result.video_path.replace(config.OUTPUT_DIR|string + '/', '')) }}" type="video/mp4">
+                    Your browser does not support video playback.
+                </video>
+            </div>
+            {% elif result.first_frame %}
+            <div class="result-image">
+                <img src="{{ url_for('serve_image', image_path=result.first_frame.replace(config.OUTPUT_DIR|string + '/', '')) }}" alt="First frame">
+            </div>
+            {% endif %}
+            <div class="result-body">
+                <div class="result-meta">
+                    <span class="meta-item">
+                        <span class="meta-label">Task:</span>
+                        <span class="meta-value">{{ result.task_id }}</span>
+                    </span>
+                    {% if result.duration_seconds %}
+                    <span class="meta-item">
+                        <span class="meta-label">Duration:</span>
+                        <span class="meta-value">{{ result.duration_seconds|duration_format }}</span>
+                    </span>
+                    {% endif %}
+                </div>
+                {% if result.prompt %}
+                <p class="result-prompt">{{ result.prompt[:120] }}{% if result.prompt|length > 120 %}...{% endif %}</p>
+                {% endif %}
+                {% if result.error and not result.success %}
+                <div class="error-message">
+                    <strong>Error:</strong> {{ result.error[:100] }}{% if result.error|length > 100 %}...{% endif %}
+                </div>
+                {% endif %}
+                <div class="result-footer">
+                    <span class="timestamp">{{ result.timestamp|datetime_format('%Y-%m-%d %H:%M') }}</span>
+                    <a href="/task/{{ result.task_id }}" class="btn btn-sm">View Task</a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+
+{% endblock %}
+

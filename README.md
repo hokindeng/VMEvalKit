@@ -141,6 +141,24 @@ output/<model>_<question_id>_<timestamp>/
 
 This structure ensures reproducibility and makes batch analysis easy.
 
+## Web Dashboard 🎨
+
+Visualize your results with the built-in web dashboard:
+
+```bash
+cd web
+./start.sh
+# Open http://localhost:5000
+```
+
+Features:
+- 📊 Overview statistics and model performance
+- 🎬 Video playback and comparison
+- 🧠 Domain and task analysis
+- ⚖️ Side-by-side model comparison
+
+See [docs/WEB_DASHBOARD.md](docs/WEB_DASHBOARD.md) for details.
+
 ## Examples
 
 See `examples/experiment_2025-10-14.py` for sequential inference across multiple models.
