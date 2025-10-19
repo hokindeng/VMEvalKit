@@ -11,6 +11,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 from typing import Dict, Any, Optional, Union
+from .base import ModelWrapper
 import json
 import time
 
@@ -404,7 +405,7 @@ if __name__ == "__main__":
 
 
 # Wrapper class to match VMEvalKit's interface pattern
-class DynamiCrafterWrapper:
+class DynamiCrafterWrapper(ModelWrapper):
     """
     Wrapper for DynamiCrafterService to match VMEvalKit's standard interface.
     """

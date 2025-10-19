@@ -30,7 +30,8 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 # Import data loader utilities
 from utils.data_loader import (
     scan_all_outputs,
-    get_hierarchical_data
+    get_hierarchical_data,
+    load_run_information
 )
 
 
@@ -47,6 +48,11 @@ def index():
         # Get hierarchical organization
         hierarchy = get_hierarchical_data(all_results)
         
+        # Load run information from inference log
+        run_info = load_run_information(app.config['OUTPUT_DIR'])
+        if not run_info:
+            logger.warning("Could not load run information from inference log")
+        
         # Calculate overview stats
         total_inferences = len(all_results)
         total_models = len(hierarchy)
@@ -61,12 +67,21 @@ def index():
             'total_domains': total_domains
         }
         
+        # Get deployment info
+        host = request.host
+        deployment_info = {
+            'local_address': f"http://{host}",
+            'github_repo': "https://github.com/hokindeng/VMEvalKit"
+        }
+        
         logger.info(f"Dashboard loaded: {total_models} models, {total_domains} domains, {total_inferences} inferences")
         
         return render_template(
             'index.html',
             overview=overview,
             hierarchy=hierarchy,
+            run_info=run_info,
+            deployment_info=deployment_info,
             output_dir=str(app.config['OUTPUT_DIR'])
         )
     except FileNotFoundError as e:

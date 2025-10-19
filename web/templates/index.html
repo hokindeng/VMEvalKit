@@ -6,12 +6,55 @@
 <div class="page-header">
     <h1>VMEvalKit Results</h1>
     <p class="subtitle">{{ overview.total_models }} models · {{ overview.total_domains }} domains · {{ overview.total_inferences }} inferences</p>
+    
+    <!-- Project Introduction Box -->
+    <div class="project-intro-box">
+        <div class="intro-header">
+            <h3>🎥🧠 VMEvalKit: Video Generation Reasoning Evaluation</h3>
+        </div>
+        <div class="intro-content">
+            <p><strong>About:</strong> This dashboard displays results from evaluating video generation models on cognitive reasoning tasks including maze solving, chess puzzles, Raven's matrices, 3D rotation, and Sudoku problems.</p>
+            
+            {% if run_info %}
+            <div class="run-info">
+                <div class="run-info-grid">
+                    <div class="run-info-item">
+                        <strong>🚀 Experiment Run:</strong> {{ run_info.experiment_name }}
+                    </div>
+                    <div class="run-info-item">
+                        <strong>📅 Started:</strong> {{ run_info.start_time.strftime('%Y-%m-%d %H:%M') }}
+                    </div>
+                    <div class="run-info-item">
+                        <strong>⏱️ Completed:</strong> {{ run_info.end_time.strftime('%Y-%m-%d %H:%M') }}
+                    </div>
+                    <div class="run-info-item">
+                        <strong>⚡ Duration:</strong> {{ "%.1f"|format(run_info.duration_hours) }} hours
+                    </div>
+                    <div class="run-info-item">
+                        <strong>✅ Success Rate:</strong> {{ run_info.successful_inferences }}/{{ run_info.total_inferences }} ({{ "%.1f"|format((run_info.successful_inferences / run_info.total_inferences * 100) if run_info.total_inferences > 0 else 0) }}%)
+                    </div>
+                    <div class="run-info-item">
+                        <strong>🤖 Models Tested:</strong> {{ run_info.models_tested|length }} models
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
+            <div class="deployment-info">
+                <div class="deployment-links">
+                    <span><strong>🌐 Deployed at:</strong> <code>{{ deployment_info.local_address }}</code></span>
+                    <span><strong>📚 Source Code:</strong> <a href="{{ deployment_info.github_repo }}" target="_blank" rel="noopener">{{ deployment_info.github_repo }}</a></span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
     {% if hierarchy %}
-    <div style="margin-top: 15px; padding: 15px; background-color: #fff3cd; border-radius: 6px; border: 1px solid #ffc107;">
+    <div class="quick-navigation">
         <strong>📌 Quick Navigation:</strong>
         {% for model in hierarchy %}
         <button onclick="navigateToModel('model-{{ loop.index }}')" 
-                style="padding: 5px 10px; margin: 5px; background-color: white; border: 1px solid #ddd; border-radius: 4px; cursor: pointer;">
+                class="nav-button">
             🤖 {{ model }}
         </button>
         {% endfor %}

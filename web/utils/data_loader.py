@@ -368,3 +368,66 @@ def get_comparison_data(results: List[Dict[str, Any]]) -> Dict[str, Any]:
         'models': all_models,
         'tasks': all_tasks
     }
+
+
+def load_run_information(output_dir: Path) -> Optional[Dict[str, Any]]:
+    """
+    Load run information from inference_log.json.
+    
+    Args:
+        output_dir: Base output directory containing inference_log.json
+        
+    Returns:
+        Dictionary with run information or None if not found
+    """
+    inference_log_path = output_dir / 'inference_log.json'
+    
+    if not inference_log_path.exists():
+        logger.warning(f"Inference log not found at: {inference_log_path}")
+        return None
+    
+    try:
+        with open(inference_log_path, 'r', encoding='utf-8') as f:
+            log_entries = json.load(f)
+        
+        if not log_entries:
+            logger.warning("Inference log is empty")
+            return None
+        
+        # Get first and last entries to determine run timeframe
+        first_entry = log_entries[0]
+        last_entry = log_entries[-1]
+        
+        # Parse timestamps
+        try:
+            start_time = datetime.fromisoformat(first_entry['timestamp'])
+            end_time = datetime.fromisoformat(last_entry['timestamp'])
+        except (ValueError, KeyError) as e:
+            logger.warning(f"Failed to parse timestamps: {e}")
+            start_time = end_time = datetime.now()
+        
+        # Calculate statistics
+        total_inferences = len(log_entries)
+        successful = sum(1 for entry in log_entries if entry.get('status') == 'success')
+        failed = total_inferences - successful
+        
+        # Get unique models
+        models = sorted(set(entry.get('model', 'unknown') for entry in log_entries))
+        
+        return {
+            'experiment_name': 'pilot_experiment',
+            'start_time': start_time,
+            'end_time': end_time,
+            'total_inferences': total_inferences,
+            'successful_inferences': successful,
+            'failed_inferences': failed,
+            'models_tested': models,
+            'duration_hours': (end_time - start_time).total_seconds() / 3600
+        }
+        
+    except (json.JSONDecodeError, IOError) as e:
+        logger.error(f"Failed to load inference log: {e}")
+        return None
+    except Exception as e:
+        logger.exception(f"Unexpected error loading run information: {e}")
+        return None

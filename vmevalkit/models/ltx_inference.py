@@ -11,6 +11,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 from typing import Dict, Any, Optional, Union
+from .base import ModelWrapper
 import json
 import time
 
@@ -223,7 +224,7 @@ class LTXVideoService:
 
 
 # Wrapper class to match VMEvalKit's interface pattern
-class LTXVideoWrapper:
+class LTXVideoWrapper(ModelWrapper):
     """
     Wrapper for LTXVideoService to match VMEvalKit's standard interface.
     """

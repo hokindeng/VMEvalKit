@@ -17,6 +17,7 @@ import logging
 from enum import Enum
 import io
 from PIL import Image
+from .base import ModelWrapper
 
 logger = logging.getLogger(__name__)
 
@@ -506,3 +507,281 @@ class Veo31Service(WaveSpeedService):
             generate_audio=generate_audio,
             negative_prompt=negative_prompt
         )
+
+
+# ========================================
+# VMEVALKIT WRAPPER CLASSES
+# ========================================
+
+class WaveSpeedWrapper(ModelWrapper):
+    """
+    VMEvalKit wrapper for WaveSpeedService to match the standard interface.
+    """
+    
+    def __init__(
+        self,
+        model: str,
+        output_dir: str = "./data/outputs",
+        **kwargs
+    ):
+        """Initialize WaveSpeed wrapper."""
+        self.model = model
+        self.output_dir = Path(output_dir)
+        self.output_dir.mkdir(exist_ok=True, parents=True)
+        self.kwargs = kwargs
+        
+        # Create WaveSpeedService instance
+        self.wavespeed_service = WaveSpeedService(model=model)
+    
+    def generate(
+        self,
+        image_path: Union[str, Path],
+        text_prompt: str,
+        duration: float = 8.0,  # Not used by WaveSpeed but kept for interface compatibility
+        output_filename: Optional[str] = None,
+        seed: int = -1,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Generate video using WaveSpeed (synchronous wrapper).
+        
+        Args:
+            image_path: Path to input image
+            text_prompt: Text prompt for video generation
+            duration: Not used (kept for compatibility)
+            output_filename: Optional output filename
+            seed: Random seed for reproducibility
+            **kwargs: Additional parameters
+            
+        Returns:
+            Dictionary with generation results
+        """
+        import time
+        start_time = time.time()
+        
+        # Generate output path
+        if not output_filename:
+            # Create filename from model and timestamp
+            safe_model = self.model.replace('/', '_').replace('-', '_')
+            timestamp = int(time.time())
+            output_filename = f"wavespeed_{safe_model}_{timestamp}.mp4"
+        
+        output_path = self.output_dir / output_filename
+        
+        # Run async generation in sync context
+        # Filter kwargs to only include parameters supported by WaveSpeedService.generate_video
+        wavespeed_kwargs = {}
+        # WaveSpeedService accepts: seed, output_path, poll_timeout_s, poll_interval_s,
+        # aspect_ratio, duration, resolution, generate_audio, negative_prompt
+        allowed_params = {
+            'poll_timeout_s', 'poll_interval_s', 'aspect_ratio', 'duration',
+            'resolution', 'generate_audio', 'negative_prompt'
+        }
+        for key, value in kwargs.items():
+            if key in allowed_params:
+                wavespeed_kwargs[key] = value
+        
+        result = asyncio.run(
+            self.wavespeed_service.generate_video(
+                prompt=text_prompt,
+                image_path=str(image_path),
+                seed=seed,
+                output_path=output_path,
+                **wavespeed_kwargs
+            )
+        )
+        
+        duration_taken = time.time() - start_time
+        
+        return {
+            "success": bool(result.get("video_path")),
+            "video_path": result.get("video_path"),
+            "error": None,
+            "duration_seconds": duration_taken,
+            "generation_id": result.get("request_id", 'unknown'),
+            "model": self.model,
+            "status": "success" if result.get("video_path") else "failed",
+            "metadata": {
+                "prompt": text_prompt,
+                "image_path": str(image_path),
+                "video_url": result.get("video_url"),
+                "seed": seed,
+                "wavespeed_result": result
+            }
+        }
+
+
+class Veo31Wrapper(ModelWrapper):
+    """
+    VMEvalKit wrapper for Veo31Service (Google Veo 3.1 via WaveSpeed) to match the standard interface.
+    """
+    
+    def __init__(
+        self,
+        model: str,
+        output_dir: str = "./data/outputs",
+        **kwargs
+    ):
+        """Initialize Veo 3.1 wrapper."""
+        self.model = model
+        self.output_dir = Path(output_dir)
+        self.output_dir.mkdir(exist_ok=True, parents=True)
+        
+        # Veo 3.1 uses WaveSpeed API key from environment
+        self.veo_service = Veo31Service()
+    
+    def generate(
+        self,
+        image_path: Union[str, Path],
+        text_prompt: str,
+        duration: float = 8.0,
+        output_filename: Optional[str] = None,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Generate video using Veo 3.1 (synchronous wrapper).
+        
+        Args:
+            image_path: Path to input image
+            text_prompt: Text description for video generation
+            duration: Video duration (up to 8 seconds for Veo 3.1)
+            output_filename: Optional output filename
+            **kwargs: Additional parameters for Veo 3.1
+        """
+        from datetime import datetime
+        # Create output path with timestamp
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        if not output_filename:
+            output_filename = f"veo31_{timestamp}.mp4"
+        output_path = self.output_dir / output_filename
+        
+        # Extract Veo 3.1 specific parameters
+        resolution = kwargs.get('resolution', '1080p')
+        aspect_ratio = kwargs.get('aspect_ratio', None)
+        generate_audio = kwargs.get('generate_audio', True)
+        negative_prompt = kwargs.get('negative_prompt', None)
+        seed = kwargs.get('seed', -1)
+        
+        # Run async function synchronously
+        result = asyncio.run(
+            self.veo_service.generate_video(
+                prompt=text_prompt,
+                image_path=image_path,
+                output_path=output_path,
+                duration=duration,
+                resolution=resolution,
+                aspect_ratio=aspect_ratio,
+                generate_audio=generate_audio,
+                negative_prompt=negative_prompt,
+                seed=seed,
+                poll_timeout_s=kwargs.get('poll_timeout_s', 300.0),
+                poll_interval_s=kwargs.get('poll_interval_s', 2.0)
+            )
+        )
+        
+        # Return standardized format
+        return {
+            "success": bool(result.get("video_path")),
+            "video_path": result.get("video_path", str(output_path)),
+            "error": None,
+            "duration_seconds": result.get("duration_seconds", 0),
+            "generation_id": result.get("request_id", 'unknown'),
+            "model": "google/veo3.1/image-to-video",
+            "status": "success" if result.get("video_path") else "failed",
+            "metadata": {
+                "prompt": text_prompt,
+                "image_path": str(image_path),
+                "video_url": result.get("video_url"),
+                "wavespeed_result": result
+            }
+        }
+
+
+class Veo31FastWrapper(ModelWrapper):
+    """
+    VMEvalKit wrapper for Veo31 Fast Service (Google Veo 3.1 Fast via WaveSpeed).
+    """
+    
+    def __init__(
+        self,
+        model: str,
+        output_dir: str = "./data/outputs",
+        **kwargs
+    ):
+        """Initialize Veo 3.1 Fast wrapper."""
+        self.model = model
+        self.output_dir = Path(output_dir)
+        self.output_dir.mkdir(exist_ok=True, parents=True)
+        
+        # Veo 3.1 Fast uses WaveSpeed API key from environment
+        self.veo_service = WaveSpeedService(model=WaveSpeedModel.VEO_3_1_FAST_I2V)
+    
+    def generate(
+        self,
+        image_path: Union[str, Path],
+        text_prompt: str,
+        duration: float = 8.0,
+        output_filename: Optional[str] = None,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Generate video using Veo 3.1 Fast (synchronous wrapper).
+        
+        Args:
+            image_path: Path to input image
+            text_prompt: Text description for video generation
+            duration: Video duration (up to 8 seconds for Veo 3.1)
+            output_filename: Optional output filename
+            **kwargs: Additional parameters for Veo 3.1
+        """
+        from datetime import datetime
+        # Create output path with timestamp
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        if not output_filename:
+            output_filename = f"veo31_fast_{timestamp}.mp4"
+        output_path = self.output_dir / output_filename
+        
+        # Extract Veo 3.1 specific parameters
+        resolution = kwargs.get('resolution', '1080p')
+        aspect_ratio = kwargs.get('aspect_ratio', None)
+        generate_audio = kwargs.get('generate_audio', True)
+        negative_prompt = kwargs.get('negative_prompt', None)
+        seed = kwargs.get('seed', -1)
+        
+        # Run async function synchronously
+        result = asyncio.run(
+            self.veo_service.generate_video(
+                prompt=text_prompt,
+                image_path=image_path,
+                output_path=output_path,
+                duration=duration,
+                resolution=resolution,
+                aspect_ratio=aspect_ratio,
+                generate_audio=generate_audio,
+                negative_prompt=negative_prompt,
+                seed=seed,
+                poll_timeout_s=kwargs.get('poll_timeout_s', 300.0),
+                poll_interval_s=kwargs.get('poll_interval_s', 2.0)
+            )
+        )
+        
+        # Return standardized format
+        return {
+            "success": bool(result.get("video_path")),
+            "video_path": result.get("video_path", str(output_path)),
+            "error": None,
+            "duration_seconds": result.get("duration_seconds", 0),
+            "generation_id": result.get("request_id", 'unknown'),
+            "model": "google/veo3.1-fast/image-to-video",
+            "status": "success" if result.get("video_path") else "failed",
+            "metadata": {
+                "prompt": text_prompt,
+                "image_path": str(image_path),
+                "video_url": result.get("video_url"),
+                "wavespeed_result": result
+            }
+        }

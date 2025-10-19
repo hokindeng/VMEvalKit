@@ -17,6 +17,7 @@ import numpy as np
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from ..utils.s3_uploader import S3ImageUploader
+from .base import ModelWrapper
 
 
 class LumaAPIError(Exception):
@@ -272,6 +273,60 @@ class LumaInference:
         with open(output_path, 'wb') as f:
             for chunk in response.iter_content(chunk_size=8192):
                 f.write(chunk)
+
+
+class LumaWrapper(ModelWrapper):
+    """
+    VMEvalKit wrapper for Luma Dream Machine to match standard interface.
+    """
+    
+    def __init__(
+        self,
+        model: str,
+        output_dir: str = "./data/outputs",
+        **kwargs
+    ):
+        """Initialize Luma wrapper."""
+        self.model = model
+        self.output_dir = Path(output_dir)
+        self.output_dir.mkdir(exist_ok=True, parents=True)
+        self.kwargs = kwargs
+        
+        # Create LumaInference instance
+        self.luma_service = LumaInference(
+            model=model,
+            output_dir=output_dir,
+            **kwargs
+        )
+    
+    def generate(
+        self,
+        image_path: Union[str, Path],
+        text_prompt: str,
+        duration: float = 8.0,
+        output_filename: Optional[str] = None,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Generate video using Luma Dream Machine (matches VMEvalKit interface).
+        
+        Args:
+            image_path: Path to input image
+            text_prompt: Text prompt for video generation
+            duration: Video duration in seconds
+            output_filename: Optional output filename
+            **kwargs: Additional parameters
+            
+        Returns:
+            Dictionary with generation results
+        """
+        return self.luma_service.generate(
+            image_path=image_path,
+            text_prompt=text_prompt,
+            duration=duration,
+            output_filename=output_filename,
+            **kwargs
+        )
 
 
 def generate_video(

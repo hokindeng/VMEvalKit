@@ -22,6 +22,7 @@ from typing import Optional, Dict, Any, Tuple
 import httpx
 from PIL import Image
 import io
+from .base import ModelWrapper
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -536,3 +537,108 @@ class VeoService:
         except Exception:
             msg = resp.text
         raise RuntimeError(f"Veo 3 API {phase} error [{resp.status_code}]: {msg}")
+
+
+class VeoWrapper(ModelWrapper):
+    """
+    VMEvalKit wrapper for VeoService to match the standard interface.
+    """
+    
+    def __init__(
+        self,
+        model: str,
+        output_dir: str = "./data/outputs",
+        **kwargs
+    ):
+        """Initialize Veo wrapper."""
+        # Veo uses Google Cloud authentication (no API key needed here)
+        self.model = model
+        self.output_dir = Path(output_dir)
+        self.output_dir.mkdir(exist_ok=True, parents=True)
+        self.kwargs = kwargs
+        
+        # Create VeoService instance
+        self.veo_service = VeoService(model_id=model, **kwargs)
+    
+    def generate(
+        self,
+        image_path: Union[str, Path],
+        text_prompt: str,
+        duration: float = 8.0,
+        output_filename: Optional[str] = None,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Generate video using Veo (synchronous wrapper).
+        
+        Args:
+            image_path: Path to input image
+            text_prompt: Text prompt for video generation
+            duration: Video duration in seconds (4, 6, or 8 for Veo)
+            output_filename: Optional output filename
+            **kwargs: Additional parameters
+            
+        Returns:
+            Dictionary with generation results
+        """
+        import time
+        start_time = time.time()
+        
+        # Convert duration to int (Veo requires int)
+        duration_seconds = int(duration)
+        
+        # Run async generation in sync context
+        # Filter kwargs to only include parameters supported by VeoService.generate_video
+        veo_kwargs = {}
+        # VeoService accepts: image_path, image_gcs_uri, duration_seconds, aspect_ratio, resolution,
+        # negative_prompt, enhance_prompt, generate_audio, sample_count, seed, person_generation,
+        # storage_uri, poll_interval_s, poll_timeout_s, download_from_gcs
+        allowed_params = {
+            'image_gcs_uri', 'aspect_ratio', 'resolution', 'negative_prompt', 'enhance_prompt',
+            'generate_audio', 'sample_count', 'seed', 'person_generation', 'storage_uri',
+            'poll_interval_s', 'poll_timeout_s', 'download_from_gcs'
+        }
+        for key, value in kwargs.items():
+            if key in allowed_params:
+                veo_kwargs[key] = value
+        
+        video_bytes, metadata = asyncio.run(
+            self.veo_service.generate_video(
+                prompt=text_prompt,
+                image_path=str(image_path),
+                duration_seconds=duration_seconds,
+                **veo_kwargs
+            )
+        )
+        
+        # Save video if we got bytes
+        video_path = None
+        if video_bytes:
+            if not output_filename:
+                # Generate filename from operation name if available
+                op_name = metadata.get('operation_name', 'veo_output')
+                if isinstance(op_name, str) and '/' in op_name:
+                    op_id = op_name.split('/')[-1]
+                    output_filename = f"veo_{op_id}.mp4"
+                else:
+                    output_filename = f"veo_{int(time.time())}.mp4"
+            
+            video_path = self.output_dir / output_filename
+            asyncio.run(self.veo_service.save_video(video_bytes, video_path))
+        
+        duration_taken = time.time() - start_time
+        
+        return {
+            "success": video_bytes is not None,
+            "video_path": str(video_path) if video_path else None,
+            "error": None,
+            "duration_seconds": duration_taken,
+            "generation_id": metadata.get('operation_name', 'unknown'),
+            "model": self.model,
+            "status": "success" if video_bytes else "completed_no_download",
+            "metadata": {
+                "prompt": text_prompt,
+                "image_path": str(image_path),
+                "veo_metadata": metadata
+            }
+        }

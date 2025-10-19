@@ -2,11 +2,12 @@
 Video generation models for VMEvalKit.
 """
 
-from .luma_inference import LumaInference, generate_video as luma_generate
-from .veo_inference import VeoService
-from .wavespeed_inference import WaveSpeedService, Veo31Service, WaveSpeedModel
-from .runway_inference import RunwayService
-from .openai_inference import SoraService
+# Commercial API services
+from .luma_inference import LumaInference, LumaWrapper, generate_video as luma_generate
+from .veo_inference import VeoService, VeoWrapper
+from .wavespeed_inference import WaveSpeedService, Veo31Service, WaveSpeedModel, WaveSpeedWrapper, Veo31Wrapper, Veo31FastWrapper
+from .runway_inference import RunwayService, RunwayWrapper
+from .openai_inference import SoraService, OpenAIWrapper
 
 # Open-source models (submodules)
 from .ltx_inference import LTXVideoService, LTXVideoWrapper
@@ -16,8 +17,11 @@ from .dynamicrafter_inference import DynamiCrafterService, DynamiCrafterWrapper
 
 __all__ = [
     # Commercial API services
-    "LumaInference", "luma_generate", 
-    "VeoService", "Veo31Service", "WaveSpeedService", "WaveSpeedModel", "RunwayService", "SoraService",
+    "LumaInference", "LumaWrapper", "luma_generate", 
+    "VeoService", "VeoWrapper", 
+    "WaveSpeedService", "Veo31Service", "WaveSpeedModel", "WaveSpeedWrapper", "Veo31Wrapper", "Veo31FastWrapper",
+    "RunwayService", "RunwayWrapper", 
+    "SoraService", "OpenAIWrapper",
     
     # Open-source models
     "LTXVideoService", "LTXVideoWrapper",

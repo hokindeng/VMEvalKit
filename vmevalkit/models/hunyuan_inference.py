@@ -11,6 +11,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 from typing import Dict, Any, Optional, Union
+from .base import ModelWrapper
 import json
 import time
 
@@ -222,7 +223,7 @@ class HunyuanVideoService:
 
 
 # Wrapper class to match VMEvalKit's interface pattern
-class HunyuanVideoWrapper:
+class HunyuanVideoWrapper(ModelWrapper):
     """
     Wrapper for HunyuanVideoService to match VMEvalKit's standard interface.
     """
