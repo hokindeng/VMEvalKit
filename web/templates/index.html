@@ -25,19 +25,19 @@
 <section class="model-section">
     <div class="model-header" onclick="toggleSection('model-{{ loop.index }}')" style="cursor: pointer; background-color: #f0f4f8; padding: 15px; border-radius: 8px; margin-bottom: 10px; transition: background-color 0.3s;">
                 <h2>
-                    <span class="expand-icon" id="icon-model-{{ loop.index }}">{% if loop.first %}▼{% else %}▶{% endif %}</span>
+                    <span class="expand-icon" id="icon-model-{{ loop.index }}">▶</span>
             🤖 {{ model }}
             <span class="badge">{{ domains.values()|map('length')|sum }} tasks</span>
-            <span style="float: right; color: #666; font-size: 14px;">Click to {% if loop.first %}collapse{% else %}expand{% endif %}</span>
+            <span style="float: right; color: #666; font-size: 14px;">Click to expand</span>
         </h2>
     </div>
     
-    <div class="model-content" id="model-{{ loop.index }}" {% if not loop.first %}style="display: none"{% endif %}>
+    <div class="model-content" id="model-{{ loop.index }}" style="display: none">
         {% for domain, tasks in domains.items() %}
         <div class="domain-section">
             <div class="domain-header" onclick="toggleSection('domain-{{ outer_loop.index }}-{{ loop.index }}')" style="cursor: pointer; background-color: #f8f9fa; padding: 10px 15px; border-radius: 6px; margin-bottom: 8px; transition: background-color 0.3s;">
                 <h3>
-                    <span class="expand-icon" id="icon-domain-{{ outer_loop.index }}-{{ loop.index }}">{% if outer_loop.first and loop.first %}▼{% else %}▶{% endif %}</span>
+                    <span class="expand-icon" id="icon-domain-{{ outer_loop.index }}-{{ loop.index }}">▶</span>
                     {% if domain == 'chess' %}♟️{% elif domain == 'maze' %}🌀{% elif domain == 'raven' %}🧩{% elif domain == 'rotation' %}🔄{% elif domain == 'sudoku' %}🔢{% else %}📝{% endif %}
                     {{ domain|title }}
                     <span class="badge">{{ tasks|length }} tasks</span>
@@ -45,7 +45,7 @@
                 </h3>
             </div>
             
-            <div class="domain-content" id="domain-{{ outer_loop.index }}-{{ loop.index }}" {% if not (outer_loop.first and loop.first) %}style="display: none"{% endif %}>
+            <div class="domain-content" id="domain-{{ outer_loop.index }}-{{ loop.index }}" style="display: none">
                 <div class="tasks-grid">
                     {% for task in tasks %}
                     <div class="task-card">
@@ -75,7 +75,7 @@
                         {% if task.video_path %}
                         <div class="task-video-section">
                             <h4>Generated Video</h4>
-                            <video controls preload="metadata" class="task-video" muted>
+                            <video controls preload="none" class="task-video" muted>
                                 <source src="/video/{{ task.video_path.replace(output_dir, '').lstrip('/') }}" type="video/mp4">
                                 Your browser does not support video playback.
                             </video>
@@ -109,6 +109,18 @@ function toggleSection(sectionId) {
     if (section.style.display === 'none') {
         section.style.display = 'block';
         icon.textContent = '▼';
+        
+        // Load videos when section becomes visible
+        const videos = section.querySelectorAll('video[preload="none"]');
+        videos.forEach(video => {
+            video.preload = 'metadata';
+            console.debug(`Upgraded video preloading for: ${video.src || video.querySelector('source')?.src}`);
+        });
+        
+        // Trigger enhanced video loading for newly upgraded videos
+        if (videos.length > 0 && window.VMEvalKit?.observeMetadataVideos) {
+            setTimeout(() => window.VMEvalKit.observeMetadataVideos(), 100);
+        }
     } else {
         section.style.display = 'none';
         icon.textContent = '▶';
@@ -122,6 +134,18 @@ function navigateToModel(modelId) {
     if (section.style.display === 'none') {
         section.style.display = 'block';
         icon.textContent = '▼';
+        
+        // Load videos when section becomes visible
+        const videos = section.querySelectorAll('video[preload="none"]');
+        videos.forEach(video => {
+            video.preload = 'metadata';
+            console.debug(`Upgraded video preloading for: ${video.src || video.querySelector('source')?.src}`);
+        });
+        
+        // Trigger enhanced video loading for newly upgraded videos
+        if (videos.length > 0 && window.VMEvalKit?.observeMetadataVideos) {
+            setTimeout(() => window.VMEvalKit.observeMetadataVideos(), 100);
+        }
     }
     // Then scroll to it
     setTimeout(function() {
@@ -152,28 +176,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-// Lazy load videos as they come into view
-document.addEventListener('DOMContentLoaded', function() {
-    if ('IntersectionObserver' in window) {
-        const videoObserver = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    const video = entry.target;
-                    if (video.preload === 'none') {
-                        video.preload = 'metadata';
-                    }
-                    videoObserver.unobserve(video);
-                }
-            });
-        }, {
-            rootMargin: '100px'
-        });
-        
-        document.querySelectorAll('video[preload="metadata"]').forEach(video => {
-            videoObserver.observe(video);
-        });
-    }
-});
+// Videos are now loaded only when sections expand - no automatic lazy loading needed
 </script>
 
 {% endblock %}

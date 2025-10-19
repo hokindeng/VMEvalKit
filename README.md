@@ -216,48 +216,41 @@ python examples/experiment_2025-10-14.py
 python examples/experiment_2025-10-14.py --all-tasks
 ```
 
-### Resume Mechanism
+### Automatic Resume
 
-The experiment script includes robust resume capability for long-running experiments:
+The experiment script includes automatic resume capability:
 
 **Features:**
 - 🔄 Sequential execution: one model at a time, one task at a time
-- ⚡ Automatic checkpointing every 5 completed jobs
-- 🛡️ Graceful interruption handling (Ctrl+C saves progress)
-- 📥 Resume from latest or specific experiment
-- 📊 Track completed, failed, and in-progress jobs
+- ✅ Automatic skip of completed tasks
+- 🎯 Selective model execution
+- 📁 Directory-based completion tracking
 
 **Usage:**
 
 ```bash
-# Resume latest interrupted experiment
-python examples/experiment_2025-10-14.py --resume latest
+# Run all tasks (automatically skips completed ones)
+python examples/experiment_2025-10-14.py --all-tasks
 
-# Resume specific experiment
-python examples/experiment_2025-10-14.py --resume experiment_20241016_143022
+# Run specific models only
+python examples/experiment_2025-10-14.py --all-tasks --only-model veo-3.0-generate
 
-# List available checkpoints
-python examples/experiment_2025-10-14.py --list-checkpoints
-
-# Start with custom experiment ID
-python examples/experiment_2025-10-14.py --experiment-id my_test_001
+# Run multiple specific models
+python examples/experiment_2025-10-14.py --all-tasks --only-model veo-3.0-generate luma-ray-2
 ```
 
 **Command Options:**
 
 | Option | Description |
 |--------|-------------|
-| `--resume <ID or 'latest'>` | Resume a previous experiment |
-| `--no-resume` | Disable resume mechanism |
-| `--experiment-id <ID>` | Set custom experiment ID |
 | `--all-tasks` | Run all tasks instead of 1 per domain |
-| `--list-checkpoints` | List available checkpoints |
+| `--only-model [MODEL ...]` | Run only specified models (others skipped) |
 
 **How It Works:**
-- Progress saved to `data/outputs/pilot_experiment/logs/checkpoint_*.json`
-- Completed jobs won't be re-run on resume
-- Failed jobs can be retried
-- Interrupted jobs are automatically retried
+- Automatically detects existing output directories
+- Skips tasks that already have successful inference results
+- To retry failed tasks: manually delete their output directories
+- No separate checkpoint files - uses directory presence for tracking
 
 ## License
 

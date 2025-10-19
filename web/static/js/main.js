@@ -187,67 +187,73 @@ function initializeSearch() {
     }, CONFIG.SEARCH_DEBOUNCE_DELAY));
 }
 
-// Enhanced video loading for immediate preload
+// Enhanced video loading - now truly lazy, only loads when sections are expanded
 function initializeLazyLoading() {
     try {
-        // For immediate video loading, we'll use IntersectionObserver to trigger full preloading
+        // For videos that have been upgraded to metadata preload, enhance them further when visible
         if ('IntersectionObserver' in window) {
-            const videos = document.querySelectorAll('video[preload="metadata"]');
-            
-            if (!videos.length) {
-                console.info('No videos found to enhance loading');
-                return;
-            }
-            
-            // Create observer for full video preloading when in viewport
-            const videoLoadObserver = new IntersectionObserver((entries) => {
-                entries.forEach(entry => {
-                    if (entry.isIntersecting) {
-                        try {
-                            const video = entry.target;
-                            
-                            // Upgrade to full preloading for smooth playback
-                            if (video.preload !== 'auto') {
-                                video.preload = 'auto';
-                                console.debug(`Enhanced preloading for video: ${video.id || video.src}`);
+            // Function to observe videos that have metadata preloading
+            const observeMetadataVideos = () => {
+                const videos = document.querySelectorAll('video[preload="metadata"]');
+                
+                if (!videos.length) {
+                    console.info('No metadata-preload videos found to enhance');
+                    return;
+                }
+                
+                // Create observer for full video preloading when in viewport
+                const videoLoadObserver = new IntersectionObserver((entries) => {
+                    entries.forEach(entry => {
+                        if (entry.isIntersecting) {
+                            try {
+                                const video = entry.target;
+                                
+                                // Upgrade to full preloading for smooth playback
+                                if (video.preload !== 'auto') {
+                                    video.preload = 'auto';
+                                    console.debug(`Enhanced preloading for video: ${video.id || video.src}`);
+                                }
+                                
+                                // Load the video data
+                                video.load();
+                                
+                                // Unobserve after loading starts
+                                videoLoadObserver.unobserve(video);
+                                
+                            } catch (error) {
+                                console.error('Error enhancing video loading:', error);
                             }
-                            
-                            // Load the video data
-                            video.load();
-                            
-                            // Unobserve after loading starts
-                            videoLoadObserver.unobserve(video);
-                            
-                        } catch (error) {
-                            console.error('Error enhancing video loading:', error);
                         }
+                    });
+                }, {
+                    rootMargin: '100px', // Start loading when video is 100px away from viewport
+                    threshold: 0.1
+                });
+                
+                videos.forEach(video => {
+                    try {
+                        videoLoadObserver.observe(video);
+                    } catch (error) {
+                        console.error('Failed to observe video for enhanced loading:', error);
                     }
                 });
-            }, {
-                rootMargin: '200px', // Start loading when video is 200px away from viewport
-                threshold: 0.1
-            });
+                
+                // Store observer for cleanup
+                activeObservers.push(videoLoadObserver);
+                
+                console.info(`Enhanced loading initialized for ${videos.length} metadata-preload videos`);
+            };
             
-            videos.forEach(video => {
-                try {
-                    videoLoadObserver.observe(video);
-                } catch (error) {
-                    console.error('Failed to observe video for enhanced loading:', error);
-                }
-            });
+            // Initial check for any existing metadata videos
+            observeMetadataVideos();
             
-            // Store observer for cleanup
-            activeObservers.push(videoLoadObserver);
+            // Make the function globally available for manual triggering
+            window.VMEvalKit = window.VMEvalKit || {};
+            window.VMEvalKit.observeMetadataVideos = observeMetadataVideos;
             
-            console.info(`Enhanced loading initialized for ${videos.length} videos`);
         } else {
-            // Fallback: immediately set all videos to auto-preload
-            const videos = document.querySelectorAll('video');
-            videos.forEach(video => {
-                video.preload = 'auto';
-                video.load();
-            });
-            console.info(`Fallback: Set ${videos.length} videos to auto-preload`);
+            // Fallback: just log that lazy loading is not available
+            console.info('IntersectionObserver not available, videos will load when sections expand');
         }
         
     } catch (error) {
