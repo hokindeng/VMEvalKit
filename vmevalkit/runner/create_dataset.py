@@ -3,13 +3,14 @@
 VMEvalKit Dataset Creation Script
 
 Directly generates the video reasoning evaluation dataset into per-question folder structure
-with <x> task pairs per domain, evenly distributed across all five reasoning domains:
+with <x> task pairs per domain, evenly distributed across all six reasoning domains:
 
 - Chess: Strategic thinking and tactical pattern recognition
 - Maze: Spatial reasoning and navigation planning  
 - RAVEN: Abstract reasoning and pattern completion
 - Rotation: 3D mental rotation and spatial visualization
 - Sudoku: Logical reasoning and constraint satisfaction
+- TicTacToe: Strategic thinking and game theory
 
 Total: <x> task pairs (<x> per domain)
 
@@ -78,6 +79,14 @@ DOMAIN_REGISTRY = {
         'name': 'Sudoku',
         'description': 'Logical reasoning and constraint satisfaction',
         'module': 'vmevalkit.tasks.sudoku_task.sudoku_reasoning',
+        'create_function': 'create_dataset',
+        'process_dataset': lambda dataset, num_samples: dataset['pairs']
+    },
+    'tictactoe': {
+        'emoji': '🎮',
+        'name': 'TicTacToe',
+        'description': 'Strategic thinking and game theory',
+        'module': 'vmevalkit.tasks.tictactoe_task.tictactoe_reasoning',
         'create_function': 'create_dataset',
         'process_dataset': lambda dataset, num_samples: dataset['pairs']
     }
