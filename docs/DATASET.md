@@ -183,8 +183,13 @@ python vmevalkit/runner/create_dataset.py --pairs-per-domain 10
 # Verify generated files
 ls data/questions/{your_task}_task/
 
-# Run inference
-python vmevalkit/runner/inference.py --model [model_name] --domain {your_task}
+# Run inference (using Python API)
+python -c "
+from vmevalkit.runner.inference import InferenceRunner
+runner = InferenceRunner()
+result = runner.run('luma-ray-2', 'data/questions/{your_task}_task/test_0000/first_frame.png', 'Your prompt here')
+print(f'Video saved: {result[\"inference_dir\"]}')
+"
 ```
 
 ## Key Points

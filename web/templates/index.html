@@ -5,33 +5,85 @@
 {% block content %}
 <div class="page-header">
     <h1>VMEvalKit Results</h1>
-    <p class="subtitle">{{ overview.total_models }} models · {{ overview.total_domains }} domains · {{ overview.total_inferences }} inferences</p>
+    
+    <!-- Project Introduction Box -->
+    <div class="project-intro-box">
+        <div class="intro-header">
+            <h3>🎥🧠 VMEvalKit: Video Generation Reasoning Evaluation</h3>
+        </div>
+        <div class="intro-content">
+            <p><strong>About:</strong> This dashboard displays results from evaluating video generation models on cognitive reasoning tasks including maze solving, chess puzzles, Raven's matrices, 3D rotation, and Sudoku problems.</p>
+            
+            <p><strong>Dataset:</strong> {{ overview.total_models }} models · {{ overview.total_domains }} domains · {{ overview.total_inferences }} inferences</p>
+            
+            {% if run_info %}
+            <div class="run-info">
+                <div class="run-info-grid">
+                    <div class="run-info-item">
+                        <strong>🚀 Experiment Run:</strong> {{ run_info.experiment_name }}
+                    </div>
+                    <div class="run-info-item">
+                        <strong>⏱️ Completed:</strong> {{ run_info.end_time.strftime('%Y-%m-%d %H:%M') }}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
+            <div class="deployment-info">
+                <div class="deployment-links">
+                    <div class="deployment-item">
+                        <strong>🌐 Deployed at:</strong><br>
+                        <code>http://192.168.1.73:5000</code>
+                    </div>
+                    <div class="deployment-item">
+                        <strong>📚 Source Code:</strong><br>
+                        <a href="https://github.com/hokindeng/VMEvalKit" target="_blank" rel="noopener">https://github.com/hokindeng/VMEvalKit</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    {% if hierarchy %}
+    <div class="quick-navigation">
+        <strong>📌 Quick Navigation:</strong>
+        {% for model in hierarchy %}
+        <button onclick="navigateToModel('model-{{ loop.index }}')" 
+                class="nav-button">
+            🤖 {{ model }}
+        </button>
+        {% endfor %}
+    </div>
+    {% endif %}
 </div>
 
 <!-- Hierarchical View: Models → Domains → Tasks -->
 {% for model, domains in hierarchy.items() %}
+{% set outer_loop = loop %}
 <section class="model-section">
-    <div class="model-header" onclick="toggleSection('model-{{ loop.index }}')">
+    <div class="model-header" onclick="toggleSection('model-{{ loop.index }}')" style="cursor: pointer; background-color: #f0f4f8; padding: 15px; border-radius: 8px; margin-bottom: 10px; transition: background-color 0.3s;">
                 <h2>
                     <span class="expand-icon" id="icon-model-{{ loop.index }}">▶</span>
             🤖 {{ model }}
             <span class="badge">{{ domains.values()|map('length')|sum }} tasks</span>
+            <span style="float: right; color: #666; font-size: 14px;">Click to expand</span>
         </h2>
     </div>
     
-    <div class="model-content" id="model-{{ loop.index }}" style="display: none;">
+    <div class="model-content" id="model-{{ loop.index }}" style="display: none">
         {% for domain, tasks in domains.items() %}
         <div class="domain-section">
-            <div class="domain-header" onclick="toggleSection('domain-{{ loop.index0 }}-{{ loop.index }}')">
+            <div class="domain-header" onclick="toggleSection('domain-{{ outer_loop.index }}-{{ loop.index }}')" style="cursor: pointer; background-color: #f8f9fa; padding: 10px 15px; border-radius: 6px; margin-bottom: 8px; transition: background-color 0.3s;">
                 <h3>
-                    <span class="expand-icon" id="icon-domain-{{ loop.index0 }}-{{ loop.index }}">▶</span>
+                    <span class="expand-icon" id="icon-domain-{{ outer_loop.index }}-{{ loop.index }}">▶</span>
                     {% if domain == 'chess' %}♟️{% elif domain == 'maze' %}🌀{% elif domain == 'raven' %}🧩{% elif domain == 'rotation' %}🔄{% elif domain == 'sudoku' %}🔢{% else %}📝{% endif %}
                     {{ domain|title }}
                     <span class="badge">{{ tasks|length }} tasks</span>
+                    <span style="float: right; color: #999; font-size: 12px;">Click to toggle</span>
                 </h3>
             </div>
             
-            <div class="domain-content" id="domain-{{ loop.index0 }}-{{ loop.index }}" style="display: none;">
+            <div class="domain-content" id="domain-{{ outer_loop.index }}-{{ loop.index }}" style="display: none">
                 <div class="tasks-grid">
                     {% for task in tasks %}
                     <div class="task-card">
@@ -44,7 +96,7 @@
                         {% if task.first_frame %}
                         <div class="task-image-section">
                             <h4>Input Image</h4>
-                            <img src="/image/{{ task.first_frame.replace(config.OUTPUT_DIR|string, '').lstrip('/') }}" 
+                            <img src="/image/{{ task.first_frame.replace(output_dir, '').lstrip('/') }}" 
                                  alt="Input" class="task-image" loading="lazy">
                         </div>
                         {% endif %}
@@ -61,8 +113,8 @@
                         {% if task.video_path %}
                         <div class="task-video-section">
                             <h4>Generated Video</h4>
-                            <video controls preload="none" class="task-video" loading="lazy">
-                                <source src="/video/{{ task.video_path.replace(config.OUTPUT_DIR|string, '').lstrip('/') }}" type="video/mp4">
+                            <video controls preload="none" class="task-video" muted>
+                                <source src="/video/{{ task.video_path.replace(output_dir, '').lstrip('/') }}" type="video/mp4">
                                 Your browser does not support video playback.
                             </video>
                         </div>
@@ -95,34 +147,74 @@ function toggleSection(sectionId) {
     if (section.style.display === 'none') {
         section.style.display = 'block';
         icon.textContent = '▼';
+        
+        // Load videos when section becomes visible
+        const videos = section.querySelectorAll('video[preload="none"]');
+        videos.forEach(video => {
+            video.preload = 'metadata';
+            console.debug(`Upgraded video preloading for: ${video.src || video.querySelector('source')?.src}`);
+        });
+        
+        // Trigger enhanced video loading for newly upgraded videos
+        if (videos.length > 0 && window.VMEvalKit?.observeMetadataVideos) {
+            setTimeout(() => window.VMEvalKit.observeMetadataVideos(), 100);
+        }
     } else {
         section.style.display = 'none';
         icon.textContent = '▶';
     }
 }
 
-// Lazy load videos as they come into view
-document.addEventListener('DOMContentLoaded', function() {
-    if ('IntersectionObserver' in window) {
-        const videoObserver = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    const video = entry.target;
-                    if (video.preload === 'none') {
-                        video.preload = 'metadata';
-                    }
-                    videoObserver.unobserve(video);
-                }
-            });
-        }, {
-            rootMargin: '100px'
+function navigateToModel(modelId) {
+    // First ensure the section is expanded
+    const section = document.getElementById(modelId);
+    const icon = document.getElementById('icon-' + modelId);
+    if (section.style.display === 'none') {
+        section.style.display = 'block';
+        icon.textContent = '▼';
+        
+        // Load videos when section becomes visible
+        const videos = section.querySelectorAll('video[preload="none"]');
+        videos.forEach(video => {
+            video.preload = 'metadata';
+            console.debug(`Upgraded video preloading for: ${video.src || video.querySelector('source')?.src}`);
         });
         
-        document.querySelectorAll('video[preload="none"]').forEach(video => {
-            videoObserver.observe(video);
-        });
+        // Trigger enhanced video loading for newly upgraded videos
+        if (videos.length > 0 && window.VMEvalKit?.observeMetadataVideos) {
+            setTimeout(() => window.VMEvalKit.observeMetadataVideos(), 100);
+        }
     }
+    // Then scroll to it
+    setTimeout(function() {
+        document.getElementById(modelId).parentElement.scrollIntoView({behavior: 'smooth', block: 'start'});
+    }, 100);
+}
+
+// Add hover effects to clickable headers
+document.addEventListener('DOMContentLoaded', function() {
+    // Add hover effect to model headers
+    document.querySelectorAll('.model-header').forEach(header => {
+        header.addEventListener('mouseenter', function() {
+            this.style.backgroundColor = '#e1e8f0';
+        });
+        header.addEventListener('mouseleave', function() {
+            this.style.backgroundColor = '#f0f4f8';
+        });
+    });
+    
+    // Add hover effect to domain headers
+    document.querySelectorAll('.domain-header').forEach(header => {
+        header.addEventListener('mouseenter', function() {
+            this.style.backgroundColor = '#eef0f2';
+        });
+        header.addEventListener('mouseleave', function() {
+            this.style.backgroundColor = '#f8f9fa';
+        });
+    });
 });
+
+// Videos are now loaded only when sections expand - no automatic lazy loading needed
 </script>
 
 {% endblock %}

@@ -39,12 +39,8 @@ import atexit
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from vmevalkit.runner.inference import (
-    run_inference, 
-    AVAILABLE_MODELS, 
-    MODEL_FAMILIES,
-    InferenceRunner
-)
+from vmevalkit.runner.inference import run_inference, InferenceRunner
+from vmevalkit.runner.MODEL_CATALOG import AVAILABLE_MODELS, MODEL_FAMILIES
 
 
 # ========================================

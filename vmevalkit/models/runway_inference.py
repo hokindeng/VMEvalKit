@@ -12,6 +12,7 @@ from pathlib import Path
 import logging
 import io
 from PIL import Image
+from .base import ModelWrapper
 
 logger = logging.getLogger(__name__)
 
@@ -341,3 +342,100 @@ class RunwayService:
                 f.write(response.content)
         
         return output_path
+
+
+# ========================================
+# VMEVALKIT WRAPPER CLASS
+# ========================================
+
+class RunwayWrapper(ModelWrapper):
+    """
+    VMEvalKit wrapper for RunwayService to match the standard interface.
+    """
+    
+    def __init__(
+        self,
+        model: str,
+        output_dir: str = "./data/outputs",
+        **kwargs
+    ):
+        """Initialize Runway wrapper."""
+        self.model = model
+        self.output_dir = Path(output_dir)
+        self.output_dir.mkdir(exist_ok=True, parents=True)
+        self.kwargs = kwargs
+        
+        # Create RunwayService instance
+        self.runway_service = RunwayService(model=model)
+    
+    def generate(
+        self,
+        image_path: Union[str, Path],
+        text_prompt: str,
+        duration: float = 5.0,
+        output_filename: Optional[str] = None,
+        ratio: Optional[str] = None,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Generate video using Runway (synchronous wrapper).
+        
+        Args:
+            image_path: Path to input image
+            text_prompt: Text prompt for video generation
+            duration: Video duration in seconds (5 or 10 depending on model)
+            output_filename: Optional output filename
+            ratio: Video aspect ratio (model-specific)
+            **kwargs: Additional parameters
+            
+        Returns:
+            Dictionary with generation results
+        """
+        import time
+        start_time = time.time()
+        
+        # Convert duration to int (Runway expects int)
+        duration_int = int(duration)
+        
+        # Generate output path
+        if not output_filename:
+            # Create filename from model and timestamp
+            safe_model = self.model.replace('_', '-')
+            timestamp = int(time.time())
+            output_filename = f"runway_{safe_model}_{timestamp}.mp4"
+        
+        output_path = self.output_dir / output_filename
+        
+        # Run async generation in sync context
+        # Filter kwargs - RunwayService.generate_video only accepts:
+        # prompt, image_path, duration, ratio, output_path
+        # All parameters are already passed explicitly, so no additional kwargs
+        result = asyncio.run(
+            self.runway_service.generate_video(
+                prompt=text_prompt,
+                image_path=str(image_path),
+                duration=duration_int,
+                ratio=ratio,
+                output_path=output_path
+            )
+        )
+        
+        duration_taken = time.time() - start_time
+        
+        return {
+            "success": bool(result.get("video_path")),
+            "video_path": result.get("video_path"),
+            "error": None,
+            "duration_seconds": duration_taken,
+            "generation_id": result.get("task_id", 'unknown'),
+            "model": self.model,
+            "status": "success" if result.get("video_path") else "failed",
+            "metadata": {
+                "prompt": text_prompt,
+                "image_path": str(image_path),
+                "video_url": result.get("video_url"),
+                "duration": duration_int,
+                "ratio": result.get("ratio"),
+                "runway_result": result
+            }
+        }

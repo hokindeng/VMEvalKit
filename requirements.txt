@@ -37,6 +37,9 @@ pandas>=2.1.0
 matplotlib>=3.7.0
 seaborn>=0.13.0
 
+# Evaluation interfaces
+gradio>=4.0.0
+
 # Maze generation and processing (for submodules)
 jaxtyping>=0.2.0  # for maze-dataset
 muutils>=0.6.0  # for maze-dataset serialization

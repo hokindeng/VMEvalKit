@@ -4,222 +4,211 @@ A modern web interface to visualize and explore video generation results from VM
 
 ## Features
 
-- 📊 **Overview Dashboard**: View statistics across all models and domains
-- 🤖 **Model Performance**: Detailed analysis per model
+- 📊 **Hierarchical Dashboard**: View results organized as Models → Domains → Tasks
+- 🤖 **Model Performance**: Detailed analysis per model with collapsible sections
 - 🧠 **Domain Analysis**: Results grouped by reasoning domain (Chess, Maze, Raven, Rotation, Sudoku)
-- 📝 **Task Comparison**: Compare how different models perform on the same task
-- ⚖️ **Side-by-Side Comparison**: Matrix view to compare all results
-- 🎬 **Video Playback**: View generated videos directly in the browser
+- 🎬 **Video Playback**: View generated videos directly in the browser with lazy loading
+- 📷 **Image Display**: Input images (first frame) and prompts for each task
+- 🚀 **Quick Navigation**: Jump buttons to quickly access any model section
+- 🔍 **API Access**: REST endpoints to programmatically access results
 - 📱 **Responsive Design**: Works on desktop, tablet, and mobile
+- ♿ **Accessibility**: Keyboard navigation, screen reader support, focus management
+- 🔒 **Security**: Path traversal protection, input validation, secure file serving
 
-## Screenshots
-
-The dashboard displays:
-- Total inference statistics
-- Success rates by model and domain
-- Video grid with playback controls
-- Comparison matrices
-- Task-specific details
-
-## Installation
+## Quick Start
 
 ### 1. Navigate to the web directory
-
 ```bash
 cd web
 ```
 
 ### 2. Install dependencies
-
-Using the main venv (recommended):
 ```bash
 source ../venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Or create a separate venv:
-```bash
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-```
-
-## Running the Dashboard
-
-### Development Mode
-
+### 3. Start the dashboard
 ```bash
 python app.py
 ```
 
 The dashboard will be available at: **http://localhost:5000**
 
-### Production Mode (with Gunicorn)
+## Configuration
 
+The dashboard automatically reads from `../data/outputs/pilot_experiment` directory. You can customize paths by modifying `app.py`:
+
+```python
+app.config['OUTPUT_DIR'] = Path('/custom/path/to/outputs')
+app.config['QUESTIONS_DIR'] = Path('/custom/path/to/questions')
+```
+
+## How It Works
+
+### Data Structure
+The dashboard scans the following directory structure:
+```
+data/outputs/pilot_experiment/
+├── {model}/
+│   ├── {domain}_task/
+│   │   ├── {task_id}/
+│   │   │   └── {run_id}/
+│   │   │       ├── question/
+│   │   │       │   ├── prompt.txt          # Task prompt
+│   │   │       │   ├── first_frame.png     # Input image  
+│   │   │       │   └── final_frame.png     # Expected output
+│   │   │       └── video/
+│   │   │           └── {model}_{hash}.mp4  # Generated video
+```
+
+### Deduplication
+If multiple runs exist for the same (model, domain, task_id), only the most recent run is displayed.
+
+### Available Models
+The dashboard currently supports these models:
+- **openai-sora-2** - OpenAI's Sora model
+- **wavespeed-wan-2.2-i2v-720p** - Wavespeed image-to-video model  
+- **veo-3.1-720p** - Google's Veo 3.1 model
+- **veo-3.0-generate** - Google's Veo 3.0 model
+- **luma-ray-2** - Luma's Ray model
+- **runway-gen4-turbo** - Runway's Gen-4 Turbo model
+
+Each model is tested on 5 reasoning domains with 15 tasks per domain (75 tasks total per model).
+
+## Interface Overview
+
+### Hierarchical Navigation
+- **Models**: Top-level sections for each video generation model
+- **Domains**: Reasoning categories within each model (Chess ♟️, Maze 🌀, Raven 🧩, Rotation 🔄, Sudoku 🔢)
+- **Tasks**: Individual test cases showing input image, prompt, and generated video
+
+### Key UI Features
+- **Auto-expand**: First model section opens automatically for immediate access
+- **Quick Navigation**: Yellow navigation bar with buttons for each model
+- **Visual Indicators**: Hover effects and expand/collapse arrows
+- **Lazy Loading**: Videos only load when their sections are expanded
+- **Click-to-play**: Click videos to play/pause
+- **Keyboard Support**: Full keyboard navigation and shortcuts
+
+## API Endpoints
+
+### Get All Results
+```http
+GET /api/results
+GET /api/results?model=luma-ray-2
+GET /api/results?domain=chess  
+GET /api/results?task_id=maze_0001
+```
+
+Returns JSON with filtered results based on query parameters:
+```json
+{
+  "total": 450,
+  "results": [
+    {
+      "run_id": "wavespeed-wan-2.2-i2v-720p_chess_0001_20251017_071644",
+      "model": "wavespeed-wan-2.2-i2v-720p",
+      "domain": "chess",
+      "task_id": "chess_0001", 
+      "timestamp": "2024-10-17T07:16:44",
+      "prompt": "Show the next chess move...",
+      "video_path": "/path/to/video.mp4",
+      "first_frame": "/path/to/input.png",
+      "inference_dir": "/path/to/run/directory"
+    }
+  ]
+}
+```
+
+## Production Deployment
+
+### Using Gunicorn
 ```bash
 gunicorn --bind 0.0.0.0:5000 --workers 4 app:app
 ```
 
-## Configuration
-
-The dashboard automatically reads from `../data/outputs/` directory. You can customize the output directory by modifying `app.py`:
-
-```python
-app.config['OUTPUT_DIR'] = Path('/custom/path/to/outputs')
+### Environment Variables
+```bash
+export FLASK_DEBUG=false
+export FLASK_HOST=0.0.0.0
+export FLASK_PORT=5000
+export SECRET_KEY=your-secret-key-here
 ```
 
-## API Endpoints
+### Security Headers
+The app includes Flask-Talisman for security headers in production.
 
-The dashboard also provides REST API endpoints:
-
-### Get All Results
-```
-GET /api/results
-GET /api/results?model=luma-ray-2
-GET /api/results?domain=chess
-GET /api/results?task_id=maze_0001
-```
-
-### Get Statistics
-```
-GET /api/statistics
-```
-
-Returns JSON with model and domain statistics.
-
-## Directory Structure
+## File Structure
 
 ```
 web/
 ├── app.py                      # Main Flask application
-├── requirements.txt            # Python dependencies
+├── requirements.txt            # Python dependencies  
 ├── README.md                   # This file
 ├── utils/
 │   ├── __init__.py
 │   └── data_loader.py         # Data scanning and loading utilities
 ├── templates/                  # HTML templates
-│   ├── base.html              # Base template
+│   ├── base.html              # Base template with navigation
 │   ├── index.html             # Dashboard overview
-│   ├── model.html             # Model-specific view
-│   ├── domain.html            # Domain-specific view
-│   ├── task.html              # Task comparison view
-│   ├── compare.html           # Comparison matrix
 │   └── error.html             # Error page
 └── static/                     # Static assets
     ├── css/
-    │   └── style.css          # Dashboard styles
+    │   └── style.css          # Clean Apple-style dashboard theme
     └── js/
-        └── main.js            # Interactive features
+        └── main.js            # Interactive features and video handling
 ```
-
-## Features in Detail
-
-### Overview Dashboard (`/`)
-- Total inference count and success rate
-- Model performance table with success rates
-- Domain statistics with task counts
-- Recent results grid with video previews
-
-### Model View (`/model/<model_name>`)
-- All results for a specific model
-- Performance breakdown by domain
-- Video grid with all generated videos
-
-### Domain View (`/domain/<domain_name>`)
-- All results for a specific reasoning domain
-- Performance breakdown by model
-- Domain-specific statistics
-
-### Task View (`/task/<task_id>`)
-- Compare all model results for a single task
-- Side-by-side video comparison
-- Input/output image display
-- Metadata and prompt information
-
-### Comparison Matrix (`/compare`)
-- Grid view of all tasks × all models
-- Video playback controls
-- Quick visual comparison
-
-## Deployment Options
-
-### Option 1: Local Network
-
-Run on your local machine and access from other devices on the same network:
-
-```bash
-python app.py
-# Access via http://<your-ip>:5000
-```
-
-### Option 2: Cloud Deployment (DigitalOcean, AWS, etc.)
-
-1. Clone the repository on your server
-2. Install dependencies
-3. Run with gunicorn:
-
-```bash
-gunicorn --bind 0.0.0.0:80 --workers 4 app:app
-```
-
-### Option 3: Docker (Future Enhancement)
-
-A Dockerfile can be added for containerized deployment.
 
 ## Troubleshooting
 
 ### Videos not loading
-- Ensure the output directory path is correct
-- Check that video files exist in `data/outputs/`
-- Verify video files are in MP4 format
+- Ensure the output directory path is correct in `app.py`
+- Check that video files exist in the expected location
+- Verify videos are in supported formats (MP4, WebM, AVI, MOV)
+- Check browser console for errors
 
-### Performance issues
+### Performance issues  
 - Large datasets may take time to scan on first load
-- Consider adding caching for production use
-- Use gunicorn with multiple workers
+- Use gunicorn with multiple workers for production
+- Videos use lazy loading - they only load when sections are expanded
 
-### Port already in use
+### Port conflicts
 Change the port in `app.py`:
 ```python
-app.run(debug=True, host='0.0.0.0', port=5001)
+port = int(os.environ.get('FLASK_PORT', 5001))
 ```
 
 ## Browser Compatibility
 
-- Chrome/Edge: ✅ Full support
-- Firefox: ✅ Full support
-- Safari: ✅ Full support
-- Mobile browsers: ✅ Responsive design
+- ✅ Chrome/Edge: Full support with video streaming
+- ✅ Firefox: Full support  
+- ✅ Safari: Full support
+- ✅ Mobile browsers: Responsive design
+
+## Development
+
+### Run in debug mode
+```bash
+export FLASK_DEBUG=true
+python app.py
+```
+
+### Add new features
+The modular structure makes it easy to extend:
+- Add new templates in `templates/`
+- Add styles to `static/css/style.css`
+- Add JavaScript to `static/js/main.js`
+- Add data utilities to `utils/data_loader.py`
 
 ## Technologies Used
 
-- **Backend**: Flask (Python)
-- **Frontend**: HTML5, CSS3, JavaScript (Vanilla)
-- **Video**: HTML5 Video API
-- **Design**: Modern dark theme with gradient accents
-- **Icons**: Emoji (universal support)
-
-## Future Enhancements
-
-Potential improvements:
-- [ ] Caching for faster load times
-- [ ] Advanced filtering and sorting
-- [ ] Download results as CSV/JSON
-- [ ] Real-time updates via WebSocket
-- [ ] Video quality analysis metrics
-- [ ] Export comparison reports
-- [ ] User authentication
-- [ ] Docker containerization
-
-## Contributing
-
-The dashboard is part of VMEvalKit. Contributions welcome!
-
-## License
-
-Same as VMEvalKit main project.
+- **Backend**: Flask 3.0, Python 3.8+
+- **Frontend**: HTML5, CSS3 (Apple-style design), Vanilla JavaScript
+- **Video**: HTML5 Video API with lazy loading
+- **Security**: Flask-Talisman, Werkzeug path protection
+- **Production**: Gunicorn WSGI server
 
 ---
 
-**Need help?** Check the main VMEvalKit documentation or open an issue on GitHub.
-
+**Questions?** Check the main VMEvalKit documentation or open an issue on GitHub.

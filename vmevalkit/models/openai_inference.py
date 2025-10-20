@@ -6,6 +6,7 @@ from typing import Optional, Dict, Any, Union, Tuple
 from pathlib import Path
 from io import BytesIO
 from PIL import Image
+from .base import ModelWrapper
 
 logger = logging.getLogger(__name__)
 
@@ -359,3 +360,100 @@ class SoraService:
                             f.write(chunk)
 
         return output_path
+
+
+# ========================================
+# VMEVALKIT WRAPPER CLASS
+# ========================================
+
+class OpenAIWrapper(ModelWrapper):
+    """
+    VMEvalKit wrapper for SoraService to match the standard interface.
+    """
+    
+    def __init__(
+        self,
+        model: str,
+        output_dir: str = "./data/outputs",
+        **kwargs
+    ):
+        """Initialize OpenAI Sora wrapper."""
+        self.model = model
+        self.output_dir = Path(output_dir)
+        self.output_dir.mkdir(exist_ok=True, parents=True)
+        self.kwargs = kwargs
+        
+        # Create SoraService instance
+        self.sora_service = SoraService(model=model)
+    
+    def generate(
+        self,
+        image_path: Union[str, Path],
+        text_prompt: str,
+        duration: float = 8.0,
+        output_filename: Optional[str] = None,
+        size: str = "1280x720",
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Generate video using Sora (synchronous wrapper).
+        
+        Args:
+            image_path: Path to input image (must match size exactly)
+            text_prompt: Text prompt for video generation
+            duration: Video duration in seconds (4, 8, or 12)
+            output_filename: Optional output filename
+            size: Video resolution (must match image dimensions exactly)
+            **kwargs: Additional parameters
+            
+        Returns:
+            Dictionary with generation results
+        """
+        import time
+        start_time = time.time()
+        
+        # Convert duration to int (Sora expects int)
+        duration_int = int(duration)
+        
+        # Generate output path
+        if not output_filename:
+            # Create filename from model and timestamp
+            safe_model = self.model.replace('-', '_')
+            timestamp = int(time.time())
+            output_filename = f"sora_{safe_model}_{timestamp}.mp4"
+        
+        output_path = self.output_dir / output_filename
+        
+        # Run async generation in sync context
+        # Filter kwargs - SoraService.generate_video only accepts:
+        # prompt, image_path, duration, size, output_path, auto_pad
+        # All parameters are already passed explicitly, so no additional kwargs
+        result = asyncio.run(
+            self.sora_service.generate_video(
+                prompt=text_prompt,
+                image_path=str(image_path),
+                duration=duration_int,
+                size=size,
+                output_path=output_path,
+                auto_pad=True  # Enable auto-padding by default
+            )
+        )
+        
+        duration_taken = time.time() - start_time
+        
+        return {
+            "success": bool(result.get("video_path")),
+            "video_path": result.get("video_path"),
+            "error": None,
+            "duration_seconds": duration_taken,
+            "generation_id": result.get("video_id", 'unknown'),
+            "model": self.model,
+            "status": "success" if result.get("video_path") else "failed",
+            "metadata": {
+                "prompt": text_prompt,
+                "image_path": str(image_path),
+                "duration": duration_int,
+                "size": result.get("size"),
+                "sora_result": result
+            }
+        }

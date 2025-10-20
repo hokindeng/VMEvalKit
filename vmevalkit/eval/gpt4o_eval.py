@@ -1,0 +1,232 @@
+"""GPT-4O automatic evaluation for VMEvalKit."""
+
+import json
+import os
+import base64
+import re
+import asyncio
+import logging
+from pathlib import Path
+from typing import Dict, Any, List, Optional, Union
+from datetime import datetime
+
+import cv2
+import numpy as np
+from PIL import Image
+import io
+import httpx
+
+logger = logging.getLogger(__name__)
+
+# Task-specific evaluation guidance
+TASK_GUIDANCE = {
+    "chess_task": "Check if the final board position matches the expected position after the correct move.",
+    "maze_task": "Verify that the final frame shows a complete path from start to end that matches the expected solution.",
+    "rotation_task": "Check if the final rotation angle and position match the expected result.",
+    "raven_task": "Verify that the pattern completion in the final frame matches the expected pattern.",
+    "sudoku_task": "Check if the numbers placed in the final frame match the expected solution."
+}
+
+
+class GPT4OEvaluator:
+    """Automatic evaluation using GPT-4O vision model."""
+    
+    def __init__(self, output_dir: str = "data/evaluations",
+                 experiment_name: str = "pilot_experiment",
+                 api_key: Optional[str] = None,
+                 model: str = "gpt-4o",
+                 temperature: float = 0.1):
+        self.output_dir = Path(output_dir)
+        self.experiment_name = experiment_name
+        self.experiment_dir = Path("data/outputs") / experiment_name
+        self.api_key = api_key or os.getenv("OPENAI_API_KEY")
+        if not self.api_key:
+            raise ValueError("OpenAI API key required. Set OPENAI_API_KEY env var.")
+        
+        self.model = model
+        self.temperature = temperature
+        self.client = httpx.AsyncClient(
+            timeout=httpx.Timeout(60.0),
+            headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+        )
+    
+    def extract_final_frame(self, video_path: str) -> np.ndarray:
+        """Extract final frame from video."""
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            raise ValueError(f"Cannot open video: {video_path}")
+        
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        if total_frames == 0:
+            raise ValueError(f"Video has no frames: {video_path}")
+        
+        # Try last frame, then second-to-last if needed
+        for offset in [1, 2]:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, total_frames - offset)
+            ret, frame = cap.read()
+            if ret:
+                cap.release()
+                return cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        
+        cap.release()
+        raise ValueError(f"Cannot read final frame from video: {video_path}")
+    
+    def encode_image(self, image: Union[np.ndarray, str]) -> str:
+        """Encode image to base64."""
+        pil_image = Image.open(image) if isinstance(image, str) else Image.fromarray(image)
+        buffer = io.BytesIO()
+        pil_image.save(buffer, format="PNG")
+        return base64.b64encode(buffer.getvalue()).decode('utf-8')
+    
+    async def call_gpt4o(self, messages: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Call GPT-4O API."""
+        response = await self.client.post(
+            "https://api.openai.com/v1/chat/completions",
+            json={"model": self.model, "messages": messages, "temperature": self.temperature, "max_tokens": 1000}
+        )
+        if response.status_code != 200:
+            raise Exception(f"API call failed: {response.status_code} - {response.text}")
+        return response.json()
+    
+    def create_prompt(self, task_type: str) -> str:
+        """Create evaluation prompt."""
+        return f"""You are evaluating video generation models.
+Compare the final frame of the generated video with the expected ground truth final frame.
+
+Rate solution correctness on a 1-5 scale:
+1: Completely wrong - no understanding of task
+2: Mostly incorrect - minimal progress toward solution
+3: Partially correct - about half the expected solution
+4: Mostly correct - close to expected result with minor errors
+5: Perfect - matches expected result
+
+{TASK_GUIDANCE.get(task_type, '')}
+
+Respond in JSON: {{"solution_correctness_score": <1-5>, "explanation": "<brief explanation>"}}"""
+    
+    async def evaluate_single_async(self, model_name: str, task_type: str, task_id: str,
+                                   video_path: str) -> Dict[str, Any]:
+        """Evaluate a single video."""
+        final_frame_video = self.extract_final_frame(video_path)
+        
+        task_dir = Path(video_path).parent.parent
+        first_frame_path = task_dir / "question" / "first_frame.png"
+        final_frame_path = task_dir / "question" / "final_frame.png"
+        prompt_path = task_dir / "question" / "prompt.txt"
+        
+        if not final_frame_path.exists():
+            logger.warning(f"No ground truth final frame for {model_name}/{task_type}/{task_id}")
+            return {"error": "No ground truth final frame available", "status": "skipped"}
+        
+        prompt_text = prompt_path.read_text() if prompt_path.exists() else ""
+        
+        messages = [
+            {"role": "system", "content": self.create_prompt(task_type)},
+            {"role": "user", "content": [
+                {"type": "text", "text": f"Task: {task_type}\nPrompt: {prompt_text}\n\n1. Input image:"},
+                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{self.encode_image(str(first_frame_path))}"}},
+                {"type": "text", "text": "\n2. Expected final frame:"},
+                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{self.encode_image(str(final_frame_path))}"}},
+                {"type": "text", "text": "\n3. Actual final frame from video:"},
+                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{self.encode_image(final_frame_video)}"}},
+                {"type": "text", "text": "\nProvide your evaluation."}
+            ]}
+        ]
+        
+        response = await self.call_gpt4o(messages)
+        content = response["choices"][0]["message"]["content"]
+        
+        # Extract JSON from response
+        json_match = re.search(r'\{[\s\S]*\}', content)
+        if json_match:
+            eval_data = json.loads(json_match.group())
+            return {
+                "solution_correctness_score": eval_data.get("solution_correctness_score", 0),
+                "explanation": eval_data.get("explanation", ""),
+                "evaluation_type": "final_frame_comparison",
+                "status": "completed"
+            }
+        raise ValueError("Could not parse JSON from GPT-4O response")
+    
+    def evaluate_single(self, model_name: str, task_type: str, task_id: str,
+                       video_path: str) -> Dict[str, Any]:
+        """Evaluate a single video (sync wrapper)."""
+        return asyncio.run(self.evaluate_single_async(model_name, task_type, task_id, video_path))
+    
+    def evaluate_model(self, model_name: str) -> Dict[str, Any]:
+        """Evaluate all results for a model."""
+        model_dir = self.experiment_dir / model_name
+        if not model_dir.exists():
+            raise ValueError(f"Model directory not found: {model_dir}")
+        
+        results = {"model_name": model_name, "evaluations": {}}
+        
+        for task_type_dir in model_dir.iterdir():
+            if not task_type_dir.is_dir(): continue
+            task_type = task_type_dir.name
+            results["evaluations"][task_type] = {}
+            
+            for task_dir in task_type_dir.iterdir():
+                if not task_dir.is_dir(): continue
+                task_id = task_dir.name
+                
+                output_dirs = list(task_dir.iterdir())
+                if not output_dirs:
+                    logger.warning(f"No output for {model_name}/{task_type}/{task_id}")
+                    continue
+                
+                output_dir = output_dirs[0]
+                video_files = list((output_dir / "video").glob("*.mp4"))
+                if not video_files:
+                    logger.warning(f"No video in {output_dir / 'video'}")
+                    continue
+                
+                try:
+                    eval_result = self.evaluate_single(model_name, task_type, task_id, str(video_files[0]))
+                    results["evaluations"][task_type][task_id] = eval_result
+                except Exception as e:
+                    logger.error(f"Error evaluating {model_name}/{task_type}/{task_id}: {e}")
+                    results["evaluations"][task_type][task_id] = {"error": str(e), "status": "failed"}
+        
+        self._save_results(model_name, results)
+        return results
+    
+    def evaluate_all_models(self) -> Dict[str, Any]:
+        """Evaluate all models in experiment."""
+        all_results = {}
+        for model_dir in self.experiment_dir.iterdir():
+            if model_dir.is_dir():
+                model_name = model_dir.name
+                logger.info(f"Evaluating model: {model_name}")
+                all_results[model_name] = self.evaluate_model(model_name)
+        
+        # Save combined results
+        output_path = self.output_dir / self.experiment_name / "GPT4OEvaluator_all_models.json"
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(output_path, 'w') as f:
+            json.dump({"metadata": {"evaluator": "GPT4OEvaluator", "timestamp": datetime.now().isoformat()},
+                      "results": all_results}, f, indent=2)
+        return all_results
+    
+    def _save_results(self, model_name: str, results: Dict[str, Any]):
+        """Save evaluation results."""
+        output_base = self.output_dir / self.experiment_name / model_name
+        
+        for task_type, task_results in results["evaluations"].items():
+            for task_id, eval_result in task_results.items():
+                task_output_dir = output_base / task_type / task_id
+                task_output_dir.mkdir(parents=True, exist_ok=True)
+                
+                with open(task_output_dir / "GPT4OEvaluator.json", 'w') as f:
+                    json.dump({
+                        "metadata": {
+                            "evaluator": "GPT4OEvaluator",
+                            "timestamp": datetime.now().isoformat(),
+                            "model_name": model_name,
+                            "task_type": task_type,
+                            "task_id": task_id
+                        },
+                        "result": eval_result
+                    }, f, indent=2)
+        
+        logger.info(f"Saved evaluation results for {model_name} to {output_base}")

@@ -4,11 +4,17 @@ Scans folders and reads prompt.txt files ONLY - NO JSON.
 """
 
 import json
+import logging
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 from datetime import datetime
+from functools import lru_cache
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 
+@lru_cache(maxsize=1)
 def scan_all_outputs(output_dir: Path) -> List[Dict[str, Any]]:
     """
     Scan output folders - NO JSON reading.
@@ -26,8 +32,16 @@ def scan_all_outputs(output_dir: Path) -> List[Dict[str, Any]]:
     """
     all_results = []
     
+    # Input validation
+    if not isinstance(output_dir, Path):
+        output_dir = Path(output_dir)
+    
     if not output_dir.exists():
-        print(f"Warning: Output directory does not exist: {output_dir}")
+        logger.warning(f"Output directory does not exist: {output_dir}")
+        return all_results
+    
+    if not output_dir.is_dir():
+        logger.error(f"Output path is not a directory: {output_dir}")
         return all_results
     
     # Scan: {model}/{domain}_task/{task_id}/{run_id}/
@@ -74,12 +88,12 @@ def scan_all_outputs(output_dir: Path) -> List[Dict[str, Any]]:
                     
                     # Log if there were duplicates
                     if len(run_dirs) > 1:
-                        print(f"Note: Found {len(run_dirs)} runs for {model_name}/{domain}/{task_id}, using most recent: {most_recent_run.name}")
+                        logger.info(f"Found {len(run_dirs)} runs for {model_name}/{domain}/{task_id}, using most recent: {most_recent_run.name}")
     
     # Sort by folder modification time (most recent first)
     all_results.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
     
-    print(f"Found {len(all_results)} unique inference results (deduplicated)")
+    logger.info(f"Scan complete: found {len(all_results)} unique inference results (deduplicated)")
     return all_results
 
 
@@ -102,36 +116,63 @@ def load_from_filesystem(run_dir: Path, model_name: str, domain: str, task_id: s
     Returns:
         Dictionary with inference data
     """
+    # Input validation
+    if not isinstance(run_dir, Path):
+        logger.error(f"run_dir must be a Path object, got {type(run_dir)}")
+        return None
+        
+    if not run_dir.exists() or not run_dir.is_dir():
+        logger.warning(f"Run directory does not exist or is not a directory: {run_dir}")
+        return None
+    
+    # Validate string inputs
+    for name, value in [('model_name', model_name), ('domain', domain), ('task_id', task_id)]:
+        if not value or not isinstance(value, str):
+            logger.error(f"Invalid {name}: {value}")
+            return None
+    
     try:
         # Read prompt from prompt.txt
         prompt = ""
         prompt_file = run_dir / 'question' / 'prompt.txt'
-        if prompt_file.exists():
-            with open(prompt_file, 'r') as f:
-                prompt = f.read().strip()
+        if prompt_file.exists() and prompt_file.is_file():
+            try:
+                with open(prompt_file, 'r', encoding='utf-8') as f:
+                    prompt = f.read().strip()
+            except (UnicodeDecodeError, IOError) as e:
+                logger.warning(f"Failed to read prompt file {prompt_file}: {e}")
+                prompt = ""
         
         # Find first frame image
         first_frame = None
         question_dir = run_dir / 'question'
-        if question_dir.exists():
+        if question_dir.exists() and question_dir.is_dir():
             first_frame_file = question_dir / 'first_frame.png'
-            if first_frame_file.exists():
+            if first_frame_file.exists() and first_frame_file.is_file():
                 first_frame = str(first_frame_file)
         
         # Find final frame image
         final_frame = None
-        if question_dir.exists():
+        if question_dir and question_dir.exists() and question_dir.is_dir():
             final_frame_file = question_dir / 'final_frame.png'
-            if final_frame_file.exists():
+            if final_frame_file.exists() and final_frame_file.is_file():
                 final_frame = str(final_frame_file)
         
         # Find video file
         video_path = None
         video_dir = run_dir / 'video'
-        if video_dir.exists():
-            video_files = list(video_dir.glob('*.mp4')) + list(video_dir.glob('*.webm'))
+        if video_dir.exists() and video_dir.is_dir():
+            # Look for video files with common extensions
+            video_extensions = ['*.mp4', '*.webm', '*.avi', '*.mov']
+            video_files = []
+            for ext in video_extensions:
+                video_files.extend(video_dir.glob(ext))
+            
             if video_files:
+                # Sort by modification time, use most recent
+                video_files.sort(key=lambda f: f.stat().st_mtime, reverse=True)
                 video_path = str(video_files[0])
+                logger.debug(f"Found video file: {video_path}")
         
         # Get timestamp from folder modification time
         timestamp = datetime.fromtimestamp(run_dir.stat().st_mtime).isoformat()
@@ -148,10 +189,11 @@ def load_from_filesystem(run_dir: Path, model_name: str, domain: str, task_id: s
             'final_frame': final_frame,
             'inference_dir': str(run_dir)
         }
+    except (OSError, IOError) as e:
+        logger.warning(f"I/O error loading from {run_dir}: {e}")
+        return None
     except Exception as e:
-        print(f"Error loading from {run_dir}: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.exception(f"Unexpected error loading from {run_dir}: {e}")
         return None
 
 
@@ -165,6 +207,10 @@ def get_model_statistics(results: List[Dict[str, Any]]) -> Dict[str, Dict[str, A
     Returns:
         Dictionary with model statistics
     """
+    if not results or not isinstance(results, list):
+        logger.warning("Invalid or empty results list provided to get_model_statistics")
+        return {}
+    
     model_stats = {}
     
     for result in results:
@@ -198,6 +244,10 @@ def get_domain_statistics(results: List[Dict[str, Any]]) -> Dict[str, Dict[str, 
     Returns:
         Dictionary with domain statistics
     """
+    if not results or not isinstance(results, list):
+        logger.warning("Invalid or empty results list provided to get_domain_statistics")
+        return {}
+    
     domain_stats = {}
     
     for result in results:
@@ -231,6 +281,10 @@ def get_hierarchical_data(results: List[Dict[str, Any]]) -> Dict[str, Any]:
     Returns:
         Nested dictionary: {model: {domain: [tasks]}}
     """
+    if not results or not isinstance(results, list):
+        logger.warning("Invalid or empty results list provided to get_hierarchical_data")
+        return {}
+    
     hierarchy = {}
     
     for result in results:
@@ -314,3 +368,51 @@ def get_comparison_data(results: List[Dict[str, Any]]) -> Dict[str, Any]:
         'models': all_models,
         'tasks': all_tasks
     }
+
+
+def load_run_information(output_dir: Path) -> Optional[Dict[str, Any]]:
+    """
+    Load minimal run information from inference_log.json.
+    Only loads experiment name and completion time.
+    
+    Args:
+        output_dir: Base output directory containing inference_log.json
+        
+    Returns:
+        Dictionary with run information or None if not found
+    """
+    inference_log_path = output_dir / 'inference_log.json'
+    
+    if not inference_log_path.exists():
+        logger.warning(f"Inference log not found at: {inference_log_path}")
+        return None
+    
+    try:
+        with open(inference_log_path, 'r', encoding='utf-8') as f:
+            log_entries = json.load(f)
+        
+        if not log_entries:
+            logger.warning("Inference log is empty")
+            return None
+        
+        # Get last entry for completion time
+        last_entry = log_entries[-1]
+        
+        # Parse completion timestamp
+        try:
+            end_time = datetime.fromisoformat(last_entry['timestamp'])
+        except (ValueError, KeyError) as e:
+            logger.warning(f"Failed to parse completion timestamp: {e}")
+            end_time = datetime.now()
+        
+        return {
+            'experiment_name': 'pilot_experiment',
+            'end_time': end_time
+        }
+        
+    except (json.JSONDecodeError, IOError) as e:
+        logger.error(f"Failed to load inference log: {e}")
+        return None
+    except Exception as e:
+        logger.exception(f"Unexpected error loading run information: {e}")
+        return None
