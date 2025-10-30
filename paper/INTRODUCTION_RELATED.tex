@@ -1,0 +1,76 @@
+\section{Introduction}
+
+The rapid evolution of video generation models has transformed our ability to synthesize realistic, high-fidelity videos from text descriptions. Systems like Sora~\cite{sora}, Veo~\cite{veo}, Runway Gen-3~\cite{runway}, and Luma Dream Machine~\cite{luma} can now generate videos that are visually indistinguishable from human-created content, depicting complex scenes with coherent motion, consistent objects, and plausible physics. These advances have been driven by scaling up training data, model parameters, and computational resources, coupled with architectural innovations in diffusion models and transformers applied to the spatiotemporal domain. However, a fundamental question remains largely unexplored: \textbf{Can these models reason?}
+
+Visual reasoning---the capacity to understand, manipulate, and solve problems through visual representations---represents a qualitatively different challenge from photorealistic synthesis. While generating a realistic video of a chess game or a person solving a Sudoku puzzle requires learning statistical patterns of motion and appearance, \emph{actually solving} these problems requires understanding the underlying rules, constraints, and logical relationships that govern valid solutions. The distinction is critical: a model that has learned to mimic the visual appearance of problem-solving without understanding the problem itself cannot reliably generate correct solutions, nor can it adapt to novel problem instances requiring genuine reasoning.
+
+Evaluating reasoning capabilities in video models presents unique methodological challenges. Video reasoning requires assessing temporal sequences where models must demonstrate understanding of state transitions, causal relationships, and goal-directed transformations. Moreover, the open-ended nature of video generation---where models can produce infinitely many plausible-looking but incorrect solutions---makes distinguishing genuine reasoning from learned pattern matching particularly challenging.
+
+We introduce \textbf{VMEvalKit}, a systematic evaluation framework designed to measure visual reasoning capabilities in video generation models through five fundamental cognitive tasks:
+
+\begin{enumerate}
+    \item \textbf{Chess Puzzles} --- Strategic planning and tactical reasoning, requiring models to generate videos showing the sequence of moves that solve mate-in-two puzzles while respecting chess rules and piece movement constraints.
+    
+    \item \textbf{Maze Navigation} --- Spatial pathfinding and navigation, where models must generate videos of an agent traversing from start to goal through a 2D maze, avoiding walls and finding valid paths.
+    
+    \item \textbf{Sudoku Solving} --- Logical deduction and constraint satisfaction, requiring models to generate videos that transition from an incomplete Sudoku grid to a fully solved configuration satisfying all row, column, and block constraints.
+    
+    \item \textbf{3D Mental Rotation} --- Spatial transformation and visualization, where models generate videos showing the continuous rotation of 3D objects to match target orientations, demonstrating understanding of three-dimensional geometry.
+    
+    \item \textbf{Raven's Progressive Matrices} --- Abstract pattern recognition and inductive reasoning, requiring models to identify the underlying rule in a sequence of abstract patterns and generate the logically consistent continuation.
+\end{enumerate}
+
+These tasks span diverse cognitive domains---from concrete spatial reasoning (maze, rotation) to abstract symbolic reasoning (Raven's matrices), from rule-based constraint satisfaction (Sudoku) to strategic planning (chess)---providing a comprehensive assessment of visual reasoning capabilities. Critically, each task admits objective correctness criteria: a chess solution either leads to checkmate or it doesn't; a maze path either reaches the goal without crossing walls or it fails; a Sudoku solution either satisfies all constraints or it violates them. This objectivity enables automated, scalable evaluation without subjective human judgment of video quality.
+
+Central to our evaluation methodology is the \textbf{Task Pair paradigm}: each problem instance consists of (1) an initial state image showing the unsolved problem, (2) a final solution image showing the correct answer, and (3) a text instruction specifying the task. The model must generate a video that transitions coherently from the initial state to the final state, demonstrating the intermediate steps of the solution process. This paradigm enables objective ground truth comparison, reasoning transparency through intermediate frames, and controllable evaluation focusing on the reasoning process rather than solution discovery.
+
+Our evaluation of \textbf{40 models spanning 11 model families}---including state-of-the-art commercial systems (Sora, Veo 3.1, Luma 1.6, Runway Gen-3) and leading open-source alternatives (CogVideoX, DynamiCrafter, HunyuanVideo)---reveals that modern video generation models demonstrate measurable reasoning abilities across all five cognitive tasks. Top-performing models achieve success rates exceeding 60\% on average, with particularly strong performance on complex tasks like chess and abstract reasoning. We validate our automated evaluation methodology through statistical comparison with human annotation, demonstrating strong correlation (Pearson $r=0.949$, Cohen's $\kappa=0.867$) and enabling scalable assessment of video reasoning capabilities.
+
+This work makes five primary contributions: (1) the first systematic evaluation of reasoning capabilities in video generation models, (2) the Task Pair evaluation paradigm for objective assessment, (3) VMEvalKit, an extensible open-source framework, (4) validation of robust automated evaluation using vision-language models, and (5) foundational infrastructure enabling future improvements through reinforcement learning and fine-tuning. Through this work, we establish that video generation is transitioning from pure synthesis to reasoning---where models must not only generate plausible worlds but demonstrate understanding of the logical, spatial, and strategic principles that govern them.
+
+
+\section{Related Work}
+\label{sec:related}
+
+Our work draws on and extends research across four interconnected areas: reasoning in language models, world models for understanding dynamics, video generation systems, and visual reasoning evaluation.
+
+\subsection{Reasoning in Language Models}
+
+The emergence of reasoning capabilities in large language models has been extensively studied across multiple domains. Chain-of-thought prompting~\cite{wei2022chain} demonstrated that language models can solve complex reasoning tasks by generating intermediate reasoning steps, with performance scaling dramatically with model size. This has been extended to multi-step reasoning in mathematics~\cite{cobbe2021training}, logical inference~\cite{creswell2022selection}, and strategic planning~\cite{yao2023tree}.
+
+Recent work has focused on evaluating and improving reasoning through specialized benchmarks. GSM8K~\cite{cobbe2021training} evaluates mathematical problem-solving, while BIG-Bench~\cite{srivastava2023beyond} assesses diverse reasoning capabilities including logical deduction, causal reasoning, and analogical thinking. MMLU~\cite{hendrycks2021measuring} provides comprehensive evaluation across 57 subjects requiring factual knowledge and reasoning. Process reward models~\cite{lightman2023lets} have shown that rewarding correct reasoning steps rather than just final answers substantially improves reliability.
+
+Recent advances in reasoning have leveraged reinforcement learning and self-improvement. Constitutional AI~\cite{bai2022constitutional} enables models to critique and revise their reasoning, while STaR~\cite{zelikman2022star} allows models to bootstrap reasoning from their own successful trajectories. However, these advances remain primarily text-based, with limited exploration of reasoning in visual and video domains.
+
+\subsection{World Models and Predictive Learning}
+
+World models learn compressed representations of environment dynamics to enable prediction and planning. Pioneering work by Ha and Schmidhuber~\cite{ha2018world} demonstrated that agents can learn to operate within learned latent world models, achieving efficient reinforcement learning in visual environments. DreamerV3~\cite{hafner2023mastering} extended this to diverse domains by learning world models that predict future states in latent space, enabling planning without environment interaction.
+
+Recent advances in video prediction have produced models capable of generating long-horizon predictions. VideoGPT~\cite{yan2021videogpt} and TATS~\cite{ge2022long} use discrete latent representations for temporally consistent generation. Genie~\cite{bruce2024genie} learns controllable world models from unlabeled video, enabling interactive exploration of learned environments. These models demonstrate understanding of physical dynamics, object permanence, and basic causal relationships~\cite{Bear2021physion}.
+
+However, world models have primarily focused on forward prediction from learned dynamics rather than goal-directed problem-solving. While they model \emph{how} things change, they do not explicitly optimize for \emph{solving} cognitive tasks requiring strategic planning, logical deduction, or abstract reasoning. Our work bridges this gap by evaluating whether video models can generate solutions to well-defined reasoning problems.
+
+\subsection{Video Generation Models}
+
+Video generation has progressed rapidly from early autoregressive models~\cite{weissenborn2020scaling} to sophisticated diffusion-based systems. Make-A-Video~\cite{singer2022make}, Imagen Video~\cite{ho2022imagen}, and CogVideo~\cite{hong2022cogvideo} demonstrated that large-scale training enables text-to-video generation with increasing visual fidelity and temporal coherence.
+
+Recent commercial systems have achieved remarkable quality. Sora~\cite{sora} uses a diffusion transformer architecture trained on diverse video data at scale, generating up to 60-second videos with complex camera motion and scene dynamics. Veo~\cite{veo} incorporates advanced motion control and physical understanding. Runway Gen-3~\cite{runway} and Luma Dream Machine~\cite{luma} provide high-quality generation with controllable parameters. Open-source alternatives like CogVideoX~\cite{yang2024cogvideox}, DynamiCrafter~\cite{xing2024dynamicrafter}, and HunyuanVideo~\cite{kong2024hunyuan} have democratized access to video generation capabilities.
+
+Controllability has been enhanced through image conditioning. I2V-Gen~\cite{zhang2023i2vgen} and DynamiCrafter~\cite{xing2024dynamicrafter} enable generation from start and end frames. AnimateDiff~\cite{guo2023animatediff} and Emu Video~\cite{girdhar2023emu} incorporate fine-grained motion control. However, evaluation has focused on visual quality metrics (FVD~\cite{unterthiner2018fvd}, IS~\cite{salimans2016improved}) and human preference ratings~\cite{wu2023tuneavideo}, with limited assessment of reasoning capabilities.
+
+\subsection{Visual Reasoning Evaluation}
+
+Evaluation of reasoning in vision has primarily focused on static image understanding and video question answering, not generative reasoning.
+
+\textbf{Image-Based Reasoning Benchmarks.} CLEVR~\cite{johnson2017clevr} evaluates compositional reasoning about object properties and spatial relationships through question answering. Raven's Progressive Matrices have been adapted for neural networks~\cite{barrett2018measuring,zhang2019raven}, testing abstract visual reasoning and pattern completion. ACRE~\cite{zhang2021acre} extends this to compositional reasoning. MathVista~\cite{lu2023mathvista} assesses mathematical reasoning in visual contexts, while MMMU~\cite{yue2024mmmu} provides comprehensive multimodal understanding evaluation across diverse domains.
+
+\textbf{Video Understanding Benchmarks.} Video question answering benchmarks like TGIF-QA~\cite{jang2017tgif}, MSVD-QA~\cite{xu2017video}, and NExT-QA~\cite{xiao2021next} evaluate temporal reasoning in video understanding. STAR~\cite{wu2021star} focuses on spatio-temporal action reasoning, while Perception Test~\cite{patraucean2023perception} assesses fine-grained temporal understanding. However, these evaluate \emph{discriminative} models (answering questions about existing videos) rather than \emph{generative} models (creating videos that solve problems).
+
+\textbf{Video Generation Evaluation.} Current video generation evaluation focuses on perceptual quality. FVD~\cite{unterthiner2018fvd} and FID~\cite{heusel2017fid} measure distributional similarity to real videos. UCF-101 classification accuracy~\cite{unterthiner2018fvd} assesses content recognizability. VBench~\cite{huang2023vbench} provides comprehensive quality assessment across 16 dimensions including motion smoothness, object consistency, and temporal coherence. GenAI-Bench~\cite{li2024genai} evaluates compositional generation capabilities. However, these metrics do not measure reasoning---a video can be perceptually perfect while solving a problem incorrectly.
+
+\textbf{Gap in Reasoning Evaluation.} No existing benchmark systematically evaluates whether video generation models can \emph{reason}---generating videos that correctly solve cognitive tasks. Visual reasoning benchmarks focus on understanding, not generation. Video generation benchmarks focus on quality, not correctness. Our work fills this gap by introducing tasks with objective correctness criteria and automated evaluation enabling scalable assessment of reasoning in video models.
+
+\subsection{Our Contribution}
+
+We introduce the first systematic framework for evaluating reasoning capabilities in video generation models. Unlike prior work on video understanding (which evaluates discriminative models) or video quality (which measures perceptual fidelity), we assess whether generative models can produce videos demonstrating correct solutions to cognitive tasks spanning strategic planning, spatial navigation, logical deduction, spatial transformation, and abstract reasoning. Our Task Pair paradigm enables objective evaluation through ground truth comparison, while our automated assessment using vision-language models achieves human-equivalent reliability at scale. VMEvalKit provides extensible infrastructure for ongoing evaluation as video generation models continue to evolve.
+
