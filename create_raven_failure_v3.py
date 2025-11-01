@@ -1,6 +1,6 @@
-open #!/usr/bin/env python3
+#!/usr/bin/env python3
 """
-Create Raven failure figure - SKIP SORA raven_0000 (it's actually correct)
+Create Raven failure figure - USE raven_0013 for Sora
 """
 
 import json
@@ -19,8 +19,13 @@ FIGURES_DIR = Path("/tmp/failure_figures")
 MODELS = ["openai-sora-2", "veo-3.1-720p", "veo-3.0-generate", "luma-ray-2", "runway-gen4-turbo", "wavespeed-wan-2.2-i2v-720p"]
 FAILURE_THRESHOLD = 3
 
+# Manually skip these (they're actually correct despite low score)
+SKIP_CASES = {
+    "openai-sora-2": ["raven_0000", "raven_0003", "raven_0010"]
+}
+
 def find_raven_failure_cases():
-    """Find one failure case per model - SKIP SORA raven_0000"""
+    """Find one failure case per model - SKIP known correct cases"""
     failure_cases = {}
     
     print("Scanning raven_task...")
@@ -36,9 +41,9 @@ def find_raven_failure_cases():
             
             task_id = task_instance_dir.name
             
-            # SKIP raven_0000 for Sora (it's actually correct)
-            if model == "openai-sora-2" and task_id == "raven_0000":
-                print(f"  ⊘ Skipping openai-sora-2 raven_0000 (actually correct)")
+            # SKIP known correct cases
+            if model in SKIP_CASES and task_id in SKIP_CASES[model]:
+                print(f"  ⊘ Skipping {model} {task_id} (actually correct)")
                 continue
             
             eval_file = task_instance_dir / "GPT4OEvaluator.json"
@@ -196,7 +201,7 @@ def create_raven_failure_figure(failure_cases, output_path):
 
 def main():
     print("=" * 60)
-    print("Finding Raven failure cases (skipping Sora raven_0000)...")
+    print("Finding Raven failure cases (skipping known correct)...")
     print("=" * 60)
     
     failure_cases = find_raven_failure_cases()
