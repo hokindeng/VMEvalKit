@@ -13,7 +13,7 @@ VMEvalKit tests whether video models can solve visual problems (mazes, chess, pu
 ## Installation
 
 ```bash
-git clone https://github.com/yourusername/VMEvalKit.git
+git clone https://github.com/hokindeng/VMEvalKit.git
 cd VMEvalKit
 python -m venv venv
 source venv/bin/activate
