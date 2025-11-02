@@ -1,6 +1,6 @@
 # VMEvalKit 🎥🧠
 
-A framework to evaluate reasoning capabilities in video generation models at scale, through cognitive tasks. We **make it very convenient** to [**add models**](https://github.com/hokindeng/VMEvalKit/blob/feacture/readme/docs/ADDING_MODELS.md), [**add tasks**](https://github.com/hokindeng/VMEvalKit/blob/feacture/readme/docs/ADDING_TASKS.md), run inferneces, and evaluations. It's permissively open-source, and we welcome everyone to [join](https://join.slack.com/t/growingailikeachild/shared_invite/zt-309yqd0sl-W8xzOkdBPha1Jh5rnee78A) us and build in public together! 🚀
+A framework to evaluate reasoning capabilities in video generation models at scale, through cognitive tasks. We **make it very convenient** to [**add models**](https://github.com/hokindeng/VMEvalKit/blob/feacture/readme/docs/ADDING_MODELS.md), [**add tasks**](https://github.com/hokindeng/VMEvalKit/blob/feacture/readme/docs/ADDING_TASKS.md), [**run inferneces**](docs/INFERENCE.md), run evaluations, and display results. It's permissively open-source, and we welcome everyone to [join](https://join.slack.com/t/growingailikeachild/shared_invite/zt-309yqd0sl-W8xzOkdBPha1Jh5rnee78A) us and build in public together! 🚀
 
 ### Basic Idea
 
