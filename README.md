@@ -73,14 +73,19 @@ pip install -e .
 
 ## Tasks
 
-Every VMEvalKit dataset consists of **Task Pairs** - the basic unit for video reasoning evaluation:
+The foundation of every VMEvalKit dataset is the **Task Pair**: a set of files defining a single video reasoning challenge.
 
-- 📸 **Initial state image** (`first_frame.png` - the reasoning problem)
-- 🎯 **Final state image** (`final_frame.png` - the solution/goal state)  
-- 📝 **Text prompt** (`prompt.txt` - instructions for video model)
-- 📊 **Rich metadata** (`question_metadata.json` - difficulty, task-specific parameters, etc.)
+Each Task Pair consists of three core components:
+- 📸 **Initial state image** (`first_frame.png`): shows the starting point or problem to be solved
+- 🎯 **Final state image** (`final_frame.png`): illustrates the goal state or solution  
+- 📝 **Text prompt** (`prompt.txt`): provides natural language instructions for the video model
 
-Each task pair is organized in its own folder (`data/questions/{domain}_task/{question_id}/`) containing all four files. Models must generate videos showing the reasoning process from initial → final state.
+Additional details about the task—such as difficulty and task-specific parameters—are recorded in the accompanying `question_metadata.json` file.
+
+All files for a Task Pair are organized together within their own folder:  
+`data/questions/{domain}_task/{question_id}/`
+
+Models are expected to generate videos showing the reasoning process that transforms the initial state into the final state.
 
 ![Task Pair Structure](paper/video-models-start-to-solve/assets/question_set.jpg)
 
