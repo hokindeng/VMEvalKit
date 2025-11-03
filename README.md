@@ -55,18 +55,6 @@ git submodule update --init --recursive
 cp env.template .env
 ```
 
-4. **Set up Python environment** - Recommended: use a fresh virtual environment
-```bash
-python -m venv venv
-source venv/bin/activate
-```
-
-5. **Install dependencies:**
-```bash
-pip install -r requirements.txt
-pip install -e .
-```
-
 4. **Set up Python environment** – Recommended: use a fresh virtual environment
 
 ```bash
@@ -74,9 +62,7 @@ python -m venv venv
 source venv/bin/activate
 ```
 
-*Alternatively, you can use modern tools like [`uv`](https://github.com/astral-sh/uv) for faster, reproducible environments (`uv venv`), or [`conda`](https://docs.conda.io/) if you're working in a scientific computing stack or need cross-language dependencies.*
-
----
+Alternatively, you can use other tools like [`uv`](https://github.com/astral-sh/uv) for faster install (`uv venv`), or [`conda`](https://docs.conda.io/) if your usecase has cross-language dependencies.
 
 5. **Install dependencies:**
 
