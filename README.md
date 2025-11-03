@@ -80,7 +80,7 @@ Each Task Pair consists of three core components:
 - 🎯 **Final state image** (`final_frame.png`): illustrates the goal state or solution  
 - 📝 **Text prompt** (`prompt.txt`): provides natural language instructions for the video model
 
-There is also an accompanying `question_metadata.json` file. Each task pair is organized in its own folder (`data/questions/{domain}_task/{question_id}/`) containing all four files. Models must generate videos showing the reasoning process from initial → final state.
+There is also an accompanying `question_metadata.json` file. Each task pair is organized in its own folder (`data/questions/{domain}_task/{question_id}/`) containing all four files. 
 
 ![Task Pair Structure](paper/video-models-start-to-solve/assets/question_set.jpg)
 
