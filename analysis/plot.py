@@ -38,7 +38,7 @@ DOMAIN_COLORS = {
 }
 
 # Define the domain order
-DOMAIN_ORDER = ['sudoku', 'raven', 'maze', 'rotation', 'chess']
+DOMAIN_ORDER = ['sudoku', 'raven', 'maze', 'chess', 'rotation']
 
 # Model signature colors (predefined for consistency)
 MODEL_COLORS = {
