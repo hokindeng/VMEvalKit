@@ -1,6 +1,6 @@
 # VMEvalKit 🎥🧠
 
-A framework to evaluate reasoning capabilities in video generation models at scale, through cognitive tasks. We **make it very convenient** to [**add models**](docs/ADDING_MODELS.md), [**add tasks**](docs/ADDING_TASKS.md), [**run inferences**](docs/INFERENCE.md), [**run evaluations**](docs/EVALUATION.md), [**manage datasets**](docs/DATA_MANAGEMENT.md) and [**display results**](https://grow-ai-like-a-child.com/video-reason/). It's **permissively open-source**, and we welcome everyone to [**join**](https://join.slack.com/t/growingailikeachild/shared_invite/zt-309yqd0sl-W8xzOkdBPha1Jh5rnee78A) us and **build in public together**! 🚀 
+A framework to evaluate reasoning capabilities in video generation models at scale, through cognitive tasks. We **make it very convenient** to [**add models**](docs/ADDING_MODELS.md), [**add tasks**](docs/ADDING_TASKS.md), [**run inferences**](docs/INFERENCE.md), [**run evaluations**](docs/EVALUATION.md), [**manage datasets**](docs/DATA_MANAGEMENT.md) and [**display results**](https://grow-ai-like-a-child.com/video-reason/). It's **permissively open-source**, and We welcome everyone to [**join us on Slack**](https://join.slack.com/t/growingailikeachild/shared_invite/zt-309yqd0sl-W8xzOkdBPha1Jh5rnee78A) or connect via [**WeChat**](asset/wechat.jpg) — let’s **build in public together**! 🚀
 
 👀 ✨ See preliminary [**results**](https://grow-ai-like-a-child.com/video-reason/) 🎬 🧠
 
@@ -333,6 +333,10 @@ VMEvalKit is meant to be a permissively open-source **shared playground** for ev
 
 💬 **Join us on Slack** to ask questions, propose ideas, or start a collab:
 [Slack Invite](https://join.slack.com/t/growingailikeachild/shared_invite/zt-309yqd0sl-W8xzOkdBPha1Jh5rnee78A) 🚀
+
+💬 **WeChat** (微信):
+
+<img src="asset/wechat.jpg" alt="WeChat QR Code" width="200">
 
 ## Documentation
 
