@@ -184,6 +184,17 @@ See **[Inference Guide](docs/INFERENCE.md)** for details.
 Quick Usecase
 
 ```bash
+
+
+python vmevalkit/runner/create_dataset.py 
+# create questions in data/
+
+python examples/experiment_2025-10-14.py  --task [maze, chess, sudoku, rotation, raven] --model [luma-ray-2, veo-3.0-generate, veo-3.1-720p, runway-gen4-turbo, openai-sora-2, wavespeed-wan-2.2-i2v-720p]
+# requires LUMA_API_KEY=your_luma_api_key_here
+
+
+
+
 # Full experiment evaluation
 python examples/run_evaluation.py human
 python examples/run_evaluation.py gpt4o
