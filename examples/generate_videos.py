@@ -527,7 +527,7 @@ Examples:
     parser.add_argument("--list-models", action="store_true", help="List all available models and exit")
     
     parser.add_argument(
-        "--o", "--override",
+        "--override",
         dest="override",
         action="store_true",
         help="Delete data/outputs/pilot_experiment directory before running (override existing outputs)"
