@@ -118,6 +118,7 @@ python examples/create_questions.py --task chess maze --pairs-per-domain 5
 # List available models
 python examples/generate_videos.py --list-models
 
+# set Luma key in .env file 
 # Run on specific model (e.g., Luma Ray 2)
 python examples/generate_videos.py --model luma-ray-2 --task chess maze
 

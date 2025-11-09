@@ -99,26 +99,22 @@ class LTXVideoService:
         for key, value in kwargs.items():
             if value is not None:
                 cmd.extend([f"--{key}", str(value)])
-        
-        try:
-            # Change to LTX-Video directory and run inference
+
+        logfile = self.output_dir / f"ltx_{int(time.time())}.log"
+        print(f"Logging to {logfile}")
+
+        with open(logfile, 'w') as f:
             result = subprocess.run(
                 cmd,
                 cwd=str(LTXV_PATH),
-                capture_output=True,
                 text=True,
-                timeout=300  # 5 minute timeout
+                timeout=300,  # 5 minute timeout
+                stdout=f,
+                stderr=f,
             )
-            
-            success = result.returncode == 0
-            error_msg = result.stderr if result.returncode != 0 else None
-            
-        except subprocess.TimeoutExpired:
-            success = False
-            error_msg = "LTX-Video inference timed out"
-        except Exception as e:
-            success = False
-            error_msg = f"LTX-Video inference failed: {str(e)}"
+        
+        success = result.returncode == 0
+        error_msg = result.stderr if result.returncode != 0 else None
         
         duration = time.time() - start_time
         
