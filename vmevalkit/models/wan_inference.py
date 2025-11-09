@@ -35,14 +35,15 @@ class WanService:
         
         if torch.cuda.is_available():
             self.device = "cuda"
-            encoder_dtype = torch.float32
+            encoder_dtype = torch.bfloat16
         else:
             self.device = "cpu"
             encoder_dtype = torch.float32
         
         load_kwargs = {
             "low_cpu_mem_usage": True,
-            "torch_dtype": encoder_dtype
+            "torch_dtype": encoder_dtype,
+            "dtype": torch.bfloat16
         }
         
         self.image_encoder = CLIPVisionModel.from_pretrained(
