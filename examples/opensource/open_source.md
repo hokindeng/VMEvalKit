@@ -1,42 +1,40 @@
 ## Installation
 
+Install the required dependencies for open-source models:
 
-```
-
+```bash
 uv pip install transformers diffusers
 ```
 
+## WAN (Wan-AI)
 
-## HunyuanVideo-I2V
+WAN 2.1 FLF2V (First-Last Frame to Video) is an open-source image-to-video generation model using diffusers.
 
-Use conda to install the HunyuanVideo-I2V submodule first, then install the vmevalkit.
+The model will be automatically downloaded from HuggingFace when first used. No additional installation steps are required.
+
+### Usage
 
 ```bash
-TODO
+# Generate videos using WAN model
+uv run examples/generate_videos.py --model wan --task chess maze
+
+# Or use the full model name
+uv run examples/generate_videos.py --model wan-2.1-flf2v-720p --task chess maze
 ```
 
+### Model Details
 
+- **Model ID**: `Wan-AI/Wan2.1-FLF2V-14B-720P-diffusers`
+- **Resolution**: Up to 720p (automatically resized based on input image aspect ratio)
+- **FPS**: 16 fps
+- **Type**: Image-to-video generation
 
 ## LTX-Video
 
-
-You need to install LTX-Video submodule first, then install the vmevalkit.
-
+### Usage
 
 ```bash
-cd submodules/LTX-Video
-
-uv venv
-source .venv/bin/activate
-uv pip install -e .\[inference\]
-
-uv pip install -e ../..
-
-cd ../../
-uv run --project submodules/LTX-Video python -c "import sys; print(sys.executable)"  # to check if the submodule is installed correctly
-
-uv run --project submodules/LTX-Video python -c "import ltx_inference; print(ltx_inference.__file__)"
-
-python inference.py --prompt "PROMPT" --conditioning_media_paths IMAGE_PATH --conditioning_start_frames 0 --height HEIGHT --width WIDTH --num_frames NUM_FRAMES --seed SEED --pipeline_config configs/ltxv-13b-0.9.8-distilled.yaml
-
+uv pip install sentencepiece #  otherwise has error. refer https://huggingface.co/Lightricks/LTX-Video/discussions/96
+# Generate videos using LTX-Video model
+uv run examples/generate_videos.py --model ltx-video --task chess maze
 ```

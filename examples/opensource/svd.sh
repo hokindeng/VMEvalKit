@@ -1,0 +1,1 @@
+ uv run examples/generate_videos.py --model svd --task chess maze

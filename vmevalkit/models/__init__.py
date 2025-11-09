@@ -15,7 +15,8 @@ __all__ = [
     "HunyuanVideoService", "HunyuanVideoWrapper", 
     "VideoCrafterService", "VideoCrafterWrapper",
     "DynamiCrafterService", "DynamiCrafterWrapper",
-    "SVDService", "SVDWrapper"
+    "SVDService", "SVDWrapper",
+    "WanService", "WanWrapper"
 ]
 
 # Module name mapping
@@ -30,6 +31,7 @@ _MODULE_MAP = {
     "videocrafter_inference": ["VideoCrafterService", "VideoCrafterWrapper"],
     "dynamicrafter_inference": ["DynamiCrafterService", "DynamiCrafterWrapper"],
     "svd_inference": ["SVDService", "SVDWrapper"],
+    "wan_inference": ["WanService", "WanWrapper"],
 }
 
 

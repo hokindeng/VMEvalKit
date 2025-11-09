@@ -1,3 +1,4 @@
+import os
 import time
 from typing import Optional, Dict, Any, Union
 from pathlib import Path
@@ -8,42 +9,46 @@ from .base import ModelWrapper
 logger = logging.getLogger(__name__)
 
 
-class LTXVideoService:
+class SVDService:
     
-    def __init__(self, model: str = "Lightricks/LTX-Video"):
+    def __init__(self, model: str = "stabilityai/stable-video-diffusion-img2vid-xt"):
         self.model_id = model
         self.pipe = None
         self.device = None
         
         self.model_constraints = {
-            "fps": 24,
-            "num_frames": 161,
-            "num_inference_steps": 50,
-            "width": 704,
-            "height": 480
+            "recommended_size": (1024, 576),
+            "fps": 7,
+            "num_frames": 25,
+            "num_inference_steps": 25,
+            "motion_bucket_id": 127,
+            "decode_chunk_size": 8
         }
     
     def _load_model(self):
         if self.pipe is not None:
             return
         
-        logger.info(f"Loading LTX model: {self.model_id}")
+        logger.info(f"Loading SVD model: {self.model_id}")
         import torch
-        from diffusers import LTXImageToVideoPipeline
+        from diffusers import StableVideoDiffusionPipeline
         
         if torch.cuda.is_available():
             self.device = "cuda"
-            torch_dtype = torch.bfloat16
+            torch_dtype = torch.float16
+            variant = "fp16"
         else:
             self.device = "cpu"
             torch_dtype = torch.float32
+            variant = None
         
-        self.pipe = LTXImageToVideoPipeline.from_pretrained(
+        self.pipe = StableVideoDiffusionPipeline.from_pretrained(
             self.model_id,
-            torch_dtype=torch_dtype
+            torch_dtype=torch_dtype,
+            variant=variant
         )
         self.pipe.to(self.device)
-        logger.info(f"LTX model loaded on {self.device}")
+        logger.info(f"SVD model loaded on {self.device}")
     
     def _prepare_image(self, image_path: Union[str, Path]) -> Image.Image:
         from diffusers.utils import load_image
@@ -53,6 +58,9 @@ class LTXVideoService:
         if image.mode != "RGB":
             image = image.convert("RGB")
         
+        target_size = self.model_constraints["recommended_size"]
+        image = image.resize(target_size, Image.Resampling.LANCZOS)
+        
         logger.info(f"Prepared image: {image.size}")
         return image
     
@@ -60,11 +68,10 @@ class LTXVideoService:
         self,
         image_path: Union[str, Path],
         text_prompt: str = "",
-        negative_prompt: Optional[str] = None,
-        width: Optional[int] = None,
-        height: Optional[int] = None,
         num_frames: Optional[int] = None,
         num_inference_steps: Optional[int] = None,
+        motion_bucket_id: Optional[int] = None,
+        decode_chunk_size: Optional[int] = None,
         fps: Optional[int] = None,
         output_path: Optional[Path] = None
     ) -> Dict[str, Any]:
@@ -74,28 +81,21 @@ class LTXVideoService:
         
         image = self._prepare_image(image_path)
         
-        width = width or self.model_constraints["width"]
-        height = height or self.model_constraints["height"]
         num_frames = num_frames or self.model_constraints["num_frames"]
         num_inference_steps = num_inference_steps or self.model_constraints["num_inference_steps"]
+        motion_bucket_id = motion_bucket_id or self.model_constraints["motion_bucket_id"]
+        decode_chunk_size = decode_chunk_size or self.model_constraints["decode_chunk_size"]
         fps = fps or self.model_constraints["fps"]
         
-        if negative_prompt is None:
-            negative_prompt = "worst quality, inconsistent motion, blurry, jittery, distorted"
+        logger.info(f"Generating video with {num_frames} frames, {num_inference_steps} steps")
         
-        logger.info(f"Generating video with prompt: {text_prompt[:80]}...")
-        logger.info(f"Dimensions: {width}x{height}, num_frames={num_frames}, steps={num_inference_steps}")
-        
-        output = self.pipe(
-            image=image,
-            prompt=text_prompt,
-            negative_prompt=negative_prompt,
-            width=width,
-            height=height,
+        frames = self.pipe(
+            image,
             num_frames=num_frames,
+            decode_chunk_size=decode_chunk_size,
             num_inference_steps=num_inference_steps,
-        )
-        frames = output.frames[0]
+            motion_bucket_id=motion_bucket_id,
+        ).frames[0]
         
         video_path = None
         if output_path:
@@ -117,18 +117,18 @@ class LTXVideoService:
             "status": "success" if video_path else "completed",
             "metadata": {
                 "num_inference_steps": num_inference_steps,
-                "width": width,
-                "height": height,
+                "motion_bucket_id": motion_bucket_id,
+                "decode_chunk_size": decode_chunk_size,
                 "image_size": image.size
             }
         }
 
 
-class LTXVideoWrapper(ModelWrapper):
+class SVDWrapper(ModelWrapper):
     
     def __init__(
         self,
-        model: str = "Lightricks/LTX-Video",
+        model: str = "stabilityai/stable-video-diffusion-img2vid-xt",
         output_dir: str = "./data/outputs",
         **kwargs
     ):
@@ -137,7 +137,7 @@ class LTXVideoWrapper(ModelWrapper):
         self.output_dir.mkdir(exist_ok=True, parents=True)
         self.kwargs = kwargs
         
-        self.ltx_service = LTXVideoService(model=model)
+        self.svd_service = SVDService(model=model)
     
     def generate(
         self,
@@ -149,33 +149,20 @@ class LTXVideoWrapper(ModelWrapper):
     ) -> Dict[str, Any]:
         start_time = time.time()
         
-        negative_prompt = kwargs.pop("negative_prompt", None)
-        width = kwargs.pop("width", None)
-        height = kwargs.pop("height", None)
-        num_frames = kwargs.pop("num_frames", None)
-        num_inference_steps = kwargs.pop("num_inference_steps", None)
-        fps = kwargs.pop("fps", None)
-        
-        if num_frames is None:
-            fps = fps or self.ltx_service.model_constraints["fps"]
-            num_frames = int(duration * fps)
+        fps = kwargs.get("fps", self.svd_service.model_constraints["fps"])
+        if "num_frames" not in kwargs:
+            kwargs["num_frames"] = int(duration * fps)
         
         if not output_filename:
             timestamp = int(time.time())
             safe_model = self.model.replace("/", "-").replace("_", "-")
-            output_filename = f"ltx_{safe_model}_{timestamp}.mp4"
+            output_filename = f"svd_{safe_model}_{timestamp}.mp4"
         
         output_path = self.output_dir / output_filename
         
-        result = self.ltx_service.generate_video(
+        result = self.svd_service.generate_video(
             image_path=str(image_path),
             text_prompt=text_prompt,
-            negative_prompt=negative_prompt,
-            width=width,
-            height=height,
-            num_frames=num_frames,
-            num_inference_steps=num_inference_steps,
-            fps=fps,
             output_path=output_path,
             **kwargs
         )
@@ -187,7 +174,7 @@ class LTXVideoWrapper(ModelWrapper):
             "video_path": result.get("video_path"),
             "error": None,
             "duration_seconds": duration_taken,
-            "generation_id": f"ltx_{int(time.time())}",
+            "generation_id": f"svd_{int(time.time())}",
             "model": self.model,
             "status": "success" if result.get("video_path") else "failed",
             "metadata": {
@@ -195,6 +182,6 @@ class LTXVideoWrapper(ModelWrapper):
                 "image_path": str(image_path),
                 "num_frames": result.get("num_frames"),
                 "fps": result.get("fps"),
-                "ltx_result": result
+                "svd_result": result
             }
         }
