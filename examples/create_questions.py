@@ -8,10 +8,6 @@ or create comprehensive datasets across all domains.
 
 Key Features:
 - Generate questions for specific domains (chess, maze, raven, rotation, sudoku)
-- Control number of questions per domain with flexible quantities
-- Read and analyze existing question datasets
-- Support for different random seeds for reproducible generation
-- Automatic organization in per-question folder structure
 
 Output Structure:
 - Each question gets its own folder: data/questions/{domain}_task/{question_id}/
@@ -25,16 +21,15 @@ import sys
 import argparse
 from pathlib import Path
 
-# Add the project root to Python path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from vmevalkit.runner.dataset import (
     create_vmeval_dataset_direct, 
     read_dataset_from_folders, 
-    print_dataset_summary,
-    DOMAIN_REGISTRY
+    print_dataset_summary
 )
+from vmevalkit.utils.constant import DOMAIN_REGISTRY
 
 def main():
     """Flexible VMEvalKit question creation with customizable options."""
@@ -43,24 +38,27 @@ def main():
         description="VMEvalKit Question Creation - Flexible task generation",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Examples:
-  # Generate 50 questions per domain (default)
-  python create_questions.py
-  
-  # Generate specific number per domain
-  python create_questions.py --pairs-per-domain 100
-  
-  # Generate for specific domains only
-  python create_questions.py --task chess maze --pairs-per-domain 25
-  
-  # Generate small test set
-  python create_questions.py --task chess --pairs-per-domain 5
-  
-  # Just read and analyze existing questions
-  python create_questions.py --read-only
-  
-  # Use different random seed
-  python create_questions.py --random-seed 123 --pairs-per-domain 10
+            Examples:
+            # Generate 50 questions per domain (default)
+            python create_questions.py
+            
+            # Generate specific number per domain
+            python create_questions.py --pairs-per-domain 100
+            
+            # Generate for specific domains only
+            python create_questions.py --task chess maze --pairs-per-domain 25
+            
+            # Download arc_agi_2 tasks from HuggingFace
+            python create_questions.py --task arc_agi_2
+            
+            # Generate small test set
+            python create_questions.py --task chess --pairs-per-domain 5
+            
+            # Just read and analyze existing questions
+            python create_questions.py --read-only
+            
+            # Use different random seed
+            python create_questions.py --random-seed 123 --pairs-per-domain 10
         """
     )
     
@@ -106,18 +104,17 @@ Examples:
     
     args = parser.parse_args()
     
-    # Handle --list-domains
     if args.list_domains:
         print("🧠 Available Task Domains:")
         print("=" * 60)
         for domain_key, domain_info in DOMAIN_REGISTRY.items():
-            print(f"{domain_info.get('emoji', '🔹')} {domain_key:10} - {domain_info['description']}")
+            hf_info = " (HuggingFace)" if domain_info.get('hf', False) else ""
+            print(f"{domain_info.get('emoji', '🔹')} {domain_key:15} - {domain_info['description']}{hf_info}")
         print(f"\nTotal: {len(DOMAIN_REGISTRY)} reasoning domains available")
         print("\nUse --task to select specific domains, or run without --task for all domains.")
-        sys.exit(0)
+        return
 
     if args.read_only:
-        # Just read existing questions from folders
         print("=" * 70)
         print("📂 Reading existing questions from folder structure...")
         print(f"   Reading from: {args.output_dir}")
@@ -126,39 +123,158 @@ Examples:
         print("=" * 70)
         return
 
-    # Show generation plan
+    output_path = Path(args.output_dir)
     selected_domains = args.task if args.task else list(DOMAIN_REGISTRY.keys())
-    total_questions = len(selected_domains) * args.pairs_per_domain
     
-    print("=" * 70)
-    print("🚀 VMEvalKit Question Generation Plan")
-    print("=" * 70)
-    print(f"📁 Output directory: {args.output_dir}")
-    print(f"🎯 Selected domains: {', '.join(selected_domains)} ({len(selected_domains)} domains)")
-    print(f"📊 Questions per domain: {args.pairs_per_domain}")
-    print(f"🔢 Total questions to generate: {total_questions}")
-    print(f"🎲 Random seed: {args.random_seed}")
-    print()
+    hf_domains = [d for d in selected_domains if DOMAIN_REGISTRY.get(d, {}).get('hf', False) is True]
+    regular_domains = [d for d in selected_domains if DOMAIN_REGISTRY.get(d, {}).get('hf', False) is not True]
+    
+    if hf_domains:
+        for domain in hf_domains:
+            domain_info = DOMAIN_REGISTRY[domain]
+            print("=" * 70)
+            print(f"📥 Downloading {domain} tasks from HuggingFace...")
+            print("=" * 70)
+            print(f"   Dataset: {domain_info.get('hf_dataset')}")
+            print(f"   Subset: {domain_info.get('hf_subset')}")
+            print(f"   Split: {domain_info.get('hf_split')}")
+            print(f"📁 Output directory: {args.output_dir}")
+            
+            from datasets import load_dataset
+            
+            hf_dataset_name = domain_info.get('hf_dataset')
+            hf_subset = domain_info.get('hf_subset')
+            hf_split = domain_info.get('hf_split', 'train')
+            
+            print(f"   Loading dataset: {hf_dataset_name}")
+            if hf_subset:
+                dataset = load_dataset(hf_dataset_name, hf_subset, split=hf_split)
+            else:
+                dataset = load_dataset(hf_dataset_name, split=hf_split)
+            
+            hf_domain = domain_info.get('hf_domain', domain)
+            task_id_prefix = domain_info.get('hf_task_id_prefix', domain)
+            prompt_column = domain_info.get('hf_prompt_column', 'prompt')
+            image_column = domain_info.get('hf_image_column', 'image')
+            solution_image_column = domain_info.get('hf_solution_image_column', 'solution_image')
+            
+            tasks = []
+            for idx, item in enumerate(dataset):
+                task_id = f"{task_id_prefix}_{idx:04d}"
+                
+                prompt = item.get(prompt_column, "")
+                first_image = item.get(image_column)
+                solution_image = item.get(solution_image_column)
+                
+                if not prompt:
+                    print(f"      ⚠️  Skipping {task_id}: Missing prompt")
+                    continue
+                
+                if first_image is None:
+                    print(f"      ⚠️  Skipping {task_id}: Missing image")
+                    continue
+                
+                task = {
+                    "id": task_id,
+                    "domain": hf_domain,
+                    "prompt": prompt,
+                    "first_image": first_image,
+                    "solution_image": solution_image
+                }
+                
+                tasks.append(task)
+            
+            domain_dir = output_path / f"{domain_info.get('hf_domain', domain)}_task"
+            domain_dir.mkdir(parents=True, exist_ok=True)
+            
+            from datetime import datetime
+            import json
+            from PIL import Image
+            
+            downloaded_tasks = []
+            for task in tasks:
+                task_id = task['id']
+                task_dir = domain_dir / task_id
+                task_dir.mkdir(parents=True, exist_ok=True)
+                
+                first_image = task['first_image']
+                if not isinstance(first_image, Image.Image):
+                    first_image = Image.fromarray(first_image) if hasattr(first_image, 'shape') else Image.open(first_image)
+                if first_image.mode != "RGB":
+                    first_image = first_image.convert("RGB")
+                
+                dest_first = task_dir / "first_frame.png"
+                first_image.save(dest_first, format="PNG")
+                
+                solution_image = task.get('solution_image')
+                final_image_path = None
+                if solution_image is not None:
+                    if not isinstance(solution_image, Image.Image):
+                        solution_image = Image.fromarray(solution_image) if hasattr(solution_image, 'shape') else Image.open(solution_image)
+                    if solution_image.mode != "RGB":
+                        solution_image = solution_image.convert("RGB")
+                    
+                    dest_final = task_dir / "final_frame.png"
+                    solution_image.save(dest_final, format="PNG")
+                    final_image_path = str(Path(f"{task['domain']}_task") / task_id / "final_frame.png")
+                
+                prompt_file = task_dir / "prompt.txt"
+                prompt_file.write_text(task['prompt'])
+                
+                task_metadata = {
+                    "id": task_id,
+                    "domain": task['domain'],
+                    "prompt": task['prompt'],
+                    "first_image_path": str(Path(f"{task['domain']}_task") / task_id / "first_frame.png"),
+                    "final_image_path": final_image_path,
+                    "created_at": datetime.now().isoformat() + 'Z',
+                    "source": domain_info.get('hf_dataset'),
+                    "subset": domain_info.get('hf_subset')
+                }
+                
+                metadata_file = task_dir / "question_metadata.json"
+                with open(metadata_file, 'w') as f:
+                    json.dump(task_metadata, f, indent=2, default=str)
+                
+                downloaded_tasks.append(task_metadata)
+            
+            print(f"✅ Downloaded {len(downloaded_tasks)} {domain} tasks to {domain_dir}")
+            print()
+    
+    if regular_domains:
+        total_questions = len(regular_domains) * args.pairs_per_domain
+        
+        print("=" * 70)
+        print("🚀 VMEvalKit Question Generation Plan")
+        print("=" * 70)
+        print(f"📁 Output directory: {args.output_dir}")
+        print(f"🎯 Selected domains: {', '.join(regular_domains)} ({len(regular_domains)} domains)")
+        print(f"📊 Questions per domain: {args.pairs_per_domain}")
+        print(f"🔢 Total questions to generate: {total_questions}")
+        print(f"🎲 Random seed: {args.random_seed}")
+        print()
 
-    # Generate questions directly to folders
-    dataset, questions_dir = create_vmeval_dataset_direct(
-        pairs_per_domain=args.pairs_per_domain, 
-        random_seed=args.random_seed,
-        selected_tasks=args.task
-    )
+        dataset, questions_dir = create_vmeval_dataset_direct(
+            pairs_per_domain=args.pairs_per_domain, 
+            random_seed=args.random_seed,
+            selected_tasks=regular_domains
+        )
+        
+        print_dataset_summary(dataset)
     
-    # Print comprehensive summary
-    print_dataset_summary(dataset)
+    print("=" * 70)
+    print("📂 Reading all questions from folder structure...")
+    print("=" * 70)
+    final_dataset = read_dataset_from_folders(output_path)
+    print_dataset_summary(final_dataset)
     
-    print(f"💾 Master dataset JSON saved: {questions_dir}/vmeval_dataset.json")
-    print(f"📁 Questions generated in: {questions_dir}")
-    print(f"🔗 Per-question folders: {questions_dir}/<domain>_task/<question_id>/")
+    print(f"📁 Questions saved in: {output_path}")
+    print(f"🔗 Per-question folders: {output_path}/<domain>_task/<question_id>/")
     print()
     print("🎉 VMEvalKit Questions ready for video generation!")
     print("🚀 Next steps:")
     print(f"   • Generate videos: python examples/generate_videos.py")
     print(f"   • Score videos: python examples/score_videos.py human")
-    print(f"   • Run inference: python -m vmevalkit.runner.inference")
     print("=" * 70)
 
 if __name__ == "__main__":
