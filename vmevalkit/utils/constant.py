@@ -75,5 +75,12 @@ DOMAIN_REGISTRY = {
         'hf_prompt_column': 'prompt',
         'hf_image_column': 'image',
         'hf_solution_image_column': 'solution_image',
+    },
+    'object_subtraction': {
+        'name': 'Object Subtraction',
+        'description': 'Selective object removal with multi-level cognitive reasoning',
+        'module': 'vmevalkit.tasks.object_subtraction_task',
+        'create_function': 'create_dataset',
+        'process_dataset': lambda dataset, num_samples: dataset['pairs']
     }
 }
