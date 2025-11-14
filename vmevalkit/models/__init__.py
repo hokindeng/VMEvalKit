@@ -15,6 +15,7 @@ __all__ = [
     "HunyuanVideoService", "HunyuanVideoWrapper", 
     "VideoCrafterService", "VideoCrafterWrapper",
     "DynamiCrafterService", "DynamiCrafterWrapper",
+    "MorphicService", "MorphicWrapper",
     "SVDService", "SVDWrapper",
     "WanService", "WanWrapper"
 ]
@@ -30,6 +31,7 @@ _MODULE_MAP = {
     "openai_inference": ["SoraService", "OpenAIWrapper"],
     "videocrafter_inference": ["VideoCrafterService", "VideoCrafterWrapper"],
     "dynamicrafter_inference": ["DynamiCrafterService", "DynamiCrafterWrapper"],
+    "morphic_inference": ["MorphicService", "MorphicWrapper"],
     "svd_inference": ["SVDService", "SVDWrapper"],
     "wan_inference": ["WanService", "WanWrapper"],
 }

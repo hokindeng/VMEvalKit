@@ -89,6 +89,12 @@ def run_inference(
         init_kwargs.update(model_config["args"])
     
     wrapper = wrapper_class(**init_kwargs)
+    
+    # Add question_data to kwargs so models can access it (e.g., for final_image_path)
+    if question_data:
+        kwargs['question_data'] = question_data
+    
+    # Run inference
     result = wrapper.generate(image_path, text_prompt, **kwargs)
     
     # Add structured output directory to result
