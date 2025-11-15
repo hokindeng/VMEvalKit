@@ -27,7 +27,8 @@ sys.path.insert(0, str(project_root))
 from vmevalkit.runner.dataset import (
     create_vmeval_dataset_direct, 
     read_dataset_from_folders, 
-    print_dataset_summary
+    print_dataset_summary,
+    download_hf_domain_to_folders
 )
 from vmevalkit.utils.constant import DOMAIN_REGISTRY
 
@@ -131,115 +132,7 @@ def main():
     
     if hf_domains:
         for domain in hf_domains:
-            domain_info = DOMAIN_REGISTRY[domain]
-            print("=" * 70)
-            print(f"📥 Downloading {domain} tasks from HuggingFace...")
-            print("=" * 70)
-            print(f"   Dataset: {domain_info.get('hf_dataset')}")
-            print(f"   Subset: {domain_info.get('hf_subset')}")
-            print(f"   Split: {domain_info.get('hf_split')}")
-            print(f"📁 Output directory: {args.output_dir}")
-            
-            from datasets import load_dataset
-            
-            hf_dataset_name = domain_info.get('hf_dataset')
-            hf_subset = domain_info.get('hf_subset')
-            hf_split = domain_info.get('hf_split', 'train')
-            
-            print(f"   Loading dataset: {hf_dataset_name}")
-            if hf_subset:
-                dataset = load_dataset(hf_dataset_name, hf_subset, split=hf_split)
-            else:
-                dataset = load_dataset(hf_dataset_name, split=hf_split)
-            
-            hf_domain = domain_info.get('hf_domain', domain)
-            task_id_prefix = domain_info.get('hf_task_id_prefix', domain)
-            prompt_column = domain_info.get('hf_prompt_column', 'prompt')
-            image_column = domain_info.get('hf_image_column', 'image')
-            solution_image_column = domain_info.get('hf_solution_image_column', 'solution_image')
-            
-            tasks = []
-            for idx, item in enumerate(dataset):
-                task_id = f"{task_id_prefix}_{idx:04d}"
-                
-                prompt = item.get(prompt_column, "")
-                first_image = item.get(image_column)
-                solution_image = item.get(solution_image_column)
-                
-                if not prompt:
-                    print(f"      ⚠️  Skipping {task_id}: Missing prompt")
-                    continue
-                
-                if first_image is None:
-                    print(f"      ⚠️  Skipping {task_id}: Missing image")
-                    continue
-                
-                task = {
-                    "id": task_id,
-                    "domain": hf_domain,
-                    "prompt": prompt,
-                    "first_image": first_image,
-                    "solution_image": solution_image
-                }
-                
-                tasks.append(task)
-            
-            domain_dir = output_path / f"{domain_info.get('hf_domain', domain)}_task"
-            domain_dir.mkdir(parents=True, exist_ok=True)
-            
-            from datetime import datetime
-            import json
-            from PIL import Image
-            
-            downloaded_tasks = []
-            for task in tasks:
-                task_id = task['id']
-                task_dir = domain_dir / task_id
-                task_dir.mkdir(parents=True, exist_ok=True)
-                
-                first_image = task['first_image']
-                if not isinstance(first_image, Image.Image):
-                    first_image = Image.fromarray(first_image) if hasattr(first_image, 'shape') else Image.open(first_image)
-                if first_image.mode != "RGB":
-                    first_image = first_image.convert("RGB")
-                
-                dest_first = task_dir / "first_frame.png"
-                first_image.save(dest_first, format="PNG")
-                
-                solution_image = task.get('solution_image')
-                final_image_path = None
-                if solution_image is not None:
-                    if not isinstance(solution_image, Image.Image):
-                        solution_image = Image.fromarray(solution_image) if hasattr(solution_image, 'shape') else Image.open(solution_image)
-                    if solution_image.mode != "RGB":
-                        solution_image = solution_image.convert("RGB")
-                    
-                    dest_final = task_dir / "final_frame.png"
-                    solution_image.save(dest_final, format="PNG")
-                    final_image_path = str(Path(f"{task['domain']}_task") / task_id / "final_frame.png")
-                
-                prompt_file = task_dir / "prompt.txt"
-                prompt_file.write_text(task['prompt'])
-                
-                task_metadata = {
-                    "id": task_id,
-                    "domain": task['domain'],
-                    "prompt": task['prompt'],
-                    "first_image_path": str(Path(f"{task['domain']}_task") / task_id / "first_frame.png"),
-                    "final_image_path": final_image_path,
-                    "created_at": datetime.now().isoformat() + 'Z',
-                    "source": domain_info.get('hf_dataset'),
-                    "subset": domain_info.get('hf_subset')
-                }
-                
-                metadata_file = task_dir / "question_metadata.json"
-                with open(metadata_file, 'w') as f:
-                    json.dump(task_metadata, f, indent=2, default=str)
-                
-                downloaded_tasks.append(task_metadata)
-            
-            print(f"✅ Downloaded {len(downloaded_tasks)} {domain} tasks to {domain_dir}")
-            print()
+            download_hf_domain_to_folders(domain, output_path)
     
     if regular_domains:
         total_questions = len(regular_domains) * args.pairs_per_domain
