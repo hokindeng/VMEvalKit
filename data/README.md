@@ -112,35 +112,12 @@ Video-Models-Solve/
 
 ## 🔧 Usage
 
-### Loading the Dataset
-
-```python
-from datasets import load_dataset
-
-# Load the entire dataset
-dataset = load_dataset("Video-Models-Solve/Video-Models-Solve")
-
-# Download specific components
-dataset = load_dataset(
-    "Video-Models-Solve/Video-Models-Solve",
-    data_files={
-        "questions": "questions/**",
-        "evaluations": "evaluations/**"
-    }
-)
-```
-
 ### Using with VMEvalKit
 
 ```bash
 # Clone the VMEvalKit repository
 git clone https://github.com/Video-Models-Solve/VMEvalKit.git
 cd VMEvalKit
-
-# Download the dataset
-python data/hf_sync.py download \
-    --repo-id Video-Models-Solve/Video-Models-Solve \
-    --target ./data
 
 # Run analysis
 python analysis/stats.py

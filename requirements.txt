@@ -79,6 +79,3 @@ Flask-Talisman>=1.1.0  # Security headers
 
 ipython>=9.6.0
 zanj>=0.5.1
-huggingface_hub>=0.24.0
-datasets>=2.18.0
-pyarrow>=14.0.2

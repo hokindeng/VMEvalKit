@@ -9,7 +9,6 @@ VMEvalKit's data management system handles:
 - ☁️ **S3 Synchronization** - Automated backup and sharing via AWS S3
 - 🔖 **Version Tracking** - Built-in versioning for reproducibility
 - 🎥 **Web Dashboard** - Interactive visualization of results
-- 🤗 **HuggingFace Integration** - Alternative dataset hosting option
 - 🔄 **Experiment Management** - Organized experiment tracking and results
 - ✅ **Data Validation** - Integrity checking and dataset verification
 
@@ -601,140 +600,6 @@ def parallel_validate(dataset, num_workers=4):
     return results
 ```
 
-## HuggingFace Integration
-
-Mirror VMEvalKit datasets to the HuggingFace Hub and restore them back locally in the exact same folder structure. This complements the S3-based flow and ensures formats remain consistent with VMEvalKit's expectations.
-
-### What this enables
-- Upload any dataset folder (e.g., `data/questions/`) to a HuggingFace dataset repo, preserving directory layout and filenames.
-- Download a complete snapshot from HuggingFace back to a local folder with identical structure.
-- Non-interactive CLI and Python API, suitable for automation and CI.
-
-### Install and auth
-Dependencies are included in `requirements.txt`:
-- `huggingface_hub`
-- `datasets`
-- `pyarrow`
-
-Authenticate using an environment variable:
-```bash
-export HF_TOKEN=hf_xxx_your_token_here
-```
-
-### CLI usage
-The `data/hf_sync.py` utility provides three commands: `upload`, `download`, and `ls`.
-
-#### Upload a local folder
-```bash
-python data/hf_sync.py upload \
-  --path data/questions \
-  --repo-id your-username/vmevalkit-questions \
-  --private \
-  --commit-message "Upload questions set" \
-  --revision main
-```
-
-#### Download to a local folder
-```bash
-python data/hf_sync.py download \
-  --repo-id your-username/vmevalkit-questions \
-  --target data/questions \
-  --revision main
-```
-
-#### List files in a repo
-```bash
-python data/hf_sync.py ls \
-  --repo-id your-username/vmevalkit-questions \
-  --revision main
-```
-
-Notes:
-- Repos are created automatically if they do not exist (`--private` respected).
-- Structure is mirrored exactly, so VMEvalKit can use the data immediately.
-- Use separate repos for large artifacts if desired (e.g., `...-outputs`, `...-evaluations`).
-
-### Python API
-```python
-from pathlib import Path
-from data.hf_sync import hf_upload, hf_download, hf_list_files
-
-# Upload folder
-hf_upload(
-    local_path=Path("data/questions"),
-    repo_id="your-username/vmevalkit-questions",
-    private=True,
-    commit_message="Upload questions",
-)
-
-# Download snapshot
-out_dir = hf_download(
-    repo_id="your-username/vmevalkit-questions",
-    target_dir=Path("data/questions"),
-)
-
-# List files
-files = hf_list_files(repo_id="your-username/vmevalkit-questions")
-print(len(files), "files on hub")
-```
-
-### Format consistency
-The sync preserves VMEvalKit's layout:
-- `data/questions/{domain}_task/{task_id}/` containing `first_frame.png`, `final_frame.png`, `prompt.txt`, and `question_metadata.json`
-- `data/outputs/{experiment}/...` and `data/evaluations/{experiment}/...` if you choose to sync those as well
-
-This guarantees seamless use with:
-- Runners (`vmevalkit.runner.InferenceRunner`)
-- Web dashboard (`web/app.py`)
-- Scoring pipelines (`examples/score_videos.py`)
-
-### Optional: Tabular datasets on the Hub
-If you prefer a tabular dataset (for metadata-centric workflows), you can still convert `vmeval_dataset.json` to a HuggingFace `datasets` object and push it. For complete reproducibility of files, the folder mirroring approach above is recommended.
-
-```python
-import json
-from datasets import Dataset, load_dataset
-import pandas as pd
-
-# Convert VMEvalKit dataset to HuggingFace format
-def to_huggingface_dataset():
-    # Load VMEvalKit dataset
-    with open("data/questions/vmeval_dataset.json") as f:
-        data = json.load(f)
-    
-    # Convert to DataFrame
-    df = pd.DataFrame(data['pairs'])
-    
-    # Create HuggingFace dataset
-    dataset = Dataset.from_pandas(df)
-    
-    # Add metadata
-    dataset.info.description = data['description']
-    dataset.info.version = data.get('version', '1.0')
-    
-    return dataset
-
-# Upload to HuggingFace
-dataset = to_huggingface_dataset()
-dataset.push_to_hub(
-    "your-username/vmevalkit-questions",
-    private=False,
-    commit_message="Update VMEvalKit dataset"
-)
-
-# Download from HuggingFace
-dataset = load_dataset("your-username/vmevalkit-questions")
-
-# Use in inference
-for item in dataset:
-    process_task(item)
-```
-
-### Best practices
-- Use separate repos for different data categories if they are very large.
-- Keep your `HF_TOKEN` in a secure secret store for CI.
-- Prefer `download` when collaborating to ensure a consistent layout across machines.
-
 ## Troubleshooting
 
 ### Common Issues
@@ -820,9 +685,6 @@ for item in dataset:
 | `python -m vmevalkit.runner.create_dataset --read-only` | Read existing dataset |
 | `python web/app.py` | Start web dashboard |
 | `./web/start.sh` | Start dashboard with script |
-| `python data/hf_sync.py upload --path data/questions --repo-id <repo>` | Upload to HF |
-| `python data/hf_sync.py download --repo-id <repo> --target data/questions` | Download from HF |
-| `python data/hf_sync.py ls --repo-id <repo>` | List HF repo files |
 
 ## Environment Variables
 
@@ -834,7 +696,6 @@ for item in dataset:
 | `AWS_DEFAULT_REGION` | AWS region | For S3 | us-east-2 |
 | `AWS_REGION` | Alternative region setting | For S3 | us-east-2 |
 | `SECRET_KEY` | Flask secret key | For web | auto-generated |
-| `HF_TOKEN` | HuggingFace access token | For HF | - |
 
 ## Data Lifecycle Management
 
