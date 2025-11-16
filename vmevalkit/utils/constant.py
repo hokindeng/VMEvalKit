@@ -1,4 +1,11 @@
 DOMAIN_REGISTRY = {
+    'videothinkbench': {
+        'name': 'VideoThinkBench',
+        'description': 'Complete VideoThinkBench dataset with all reasoning tasks (~4.1k tasks)',
+        'module': 'vmevalkit.tasks.videothinkbench_task',
+        'create_function': 'create_dataset',
+        'process_dataset': lambda dataset, num_samples: dataset['pairs']
+    },
     'chess': {
         'name': 'Chess',
         'description': 'Strategic thinking and tactical pattern recognition',
@@ -10,7 +17,7 @@ DOMAIN_REGISTRY = {
         'name': 'Maze',
         'description': 'Spatial reasoning and navigation planning',
         'module': 'vmevalkit.tasks.maze_task',
-        'create_function': 'create_dataset',  # Standard function like other domains
+        'create_function': 'create_dataset',
         'process_dataset': lambda dataset, num_samples: dataset['pairs']
     },
     'raven': {
@@ -35,51 +42,51 @@ DOMAIN_REGISTRY = {
         'process_dataset': lambda dataset, num_samples: dataset['pairs']
     },
     'arc_agi_2': {
-        'name': 'Arc AGI',
-        'description': 'Arc AGI reasoning and problem solving',
-        'module': 'vmevalkit.tasks.arc_agi_task',
+        'name': 'ARC AGI 2',
+        'description': 'ARC AGI reasoning and problem solving',
+        'module': 'vmevalkit.tasks.videothinkbench_arc_agi_task',
         'create_function': 'create_dataset',
-        'process_dataset': lambda dataset, num_samples: dataset['pairs'],
-        'hf': True,
-        'hf_dataset': 'OpenMOSS-Team/VideoThinkBench',
-        'hf_subset': 'ARC_AGI_2',
-        'hf_split': 'test',
-        'hf_prompt_column': 'prompt',
-        'hf_image_column': 'image',
-        'hf_solution_image_column': 'solution_image',
+        'process_dataset': lambda dataset, num_samples: dataset['pairs']
     },
     'eyeballing_puzzles': {
         'name': 'Eyeballing Puzzles',
         'description': 'Eyeballing puzzles reasoning and problem solving',
-        'module': 'vmevalkit.tasks.eyeballing_puzzles_task',
+        'module': 'vmevalkit.tasks.videothinkbench_eyeballing_puzzles_task',
         'create_function': 'create_dataset',
-        'process_dataset': lambda dataset, num_samples: dataset['pairs'],
-        'hf': True,
-        'hf_dataset': 'OpenMOSS-Team/VideoThinkBench',
-        'hf_subset': 'Eyeballing_Puzzles',
-        'hf_split': 'test',
-        'hf_prompt_column': 'prompt',
-        'hf_image_column': 'image',
-        'hf_solution_image_column': 'solution_image',
+        'process_dataset': lambda dataset, num_samples: dataset['pairs']
     },
     'visual_puzzles': {
         'name': 'Visual Puzzles',
         'description': 'Visual puzzles reasoning and problem solving',
-        'module': 'vmevalkit.tasks.visual_puzzles_task',
+        'module': 'vmevalkit.tasks.videothinkbench_visual_puzzles_task',
         'create_function': 'create_dataset',
-        'process_dataset': lambda dataset, num_samples: dataset['pairs'],
-        'hf': True,
-        'hf_dataset': 'OpenMOSS-Team/VideoThinkBench',
-        'hf_subset': 'Visual_Puzzles',
-        'hf_split': 'test',
-        'hf_prompt_column': 'prompt',
-        'hf_image_column': 'image',
-        'hf_solution_image_column': 'solution_image',
+        'process_dataset': lambda dataset, num_samples: dataset['pairs']
+    },
+    'mazes': {
+        'name': 'Mazes',
+        'description': 'Path-finding and navigation challenges',
+        'module': 'vmevalkit.tasks.videothinkbench_mazes_task',
+        'create_function': 'create_dataset',
+        'process_dataset': lambda dataset, num_samples: dataset['pairs']
+    },
+    'text_centric_tasks': {
+        'name': 'Text Centric Tasks',
+        'description': 'Mathematical reasoning and multimodal understanding',
+        'module': 'vmevalkit.tasks.videothinkbench_text_centric_tasks_task',
+        'create_function': 'create_dataset',
+        'process_dataset': lambda dataset, num_samples: dataset['pairs']
     },
     'object_subtraction': {
         'name': 'Object Subtraction',
         'description': 'Selective object removal with multi-level cognitive reasoning',
         'module': 'vmevalkit.tasks.object_subtraction_task',
+        'create_function': 'create_dataset',
+        'process_dataset': lambda dataset, num_samples: dataset['pairs']
+    },
+    'mme_cof': {
+        'name': 'MME-CoF',
+        'description': 'Video Chain-of-Frame reasoning evaluation across 16 cognitive domains (59 tasks)',
+        'module': 'vmevalkit.tasks.mme_cof_task',
         'create_function': 'create_dataset',
         'process_dataset': lambda dataset, num_samples: dataset['pairs']
     }
