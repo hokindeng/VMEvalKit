@@ -18,7 +18,6 @@ def create_dataset(num_samples: int = None) -> Dict[str, Any]:
     - ARC AGI 2
     - Eyeballing Puzzles
     - Visual Puzzles
-    - Mazes
     - Text Centric Tasks
     
     Args:
@@ -30,13 +29,12 @@ def create_dataset(num_samples: int = None) -> Dict[str, Any]:
     from datasets import load_dataset
     
     print(f"📥 Downloading all VideoThinkBench tasks from HuggingFace...")
-    print(f"   This includes all subsets: ARC AGI 2, Eyeballing Puzzles, Visual Puzzles, Mazes, Text Centric Tasks")
+    print(f"   This includes all subsets: ARC AGI 2, Eyeballing Puzzles, Visual Puzzles, Text Centric Tasks")
     
     subsets = [
         ('ARC_AGI_2', 'arc_agi_2'),
         ('Eyeballing_Puzzles', 'eyeballing_puzzles'),
         ('Visual_Puzzles', 'visual_puzzles'),
-        ('Mazes', 'mazes'),
         ('Text_Centric_Tasks', 'text_centric_tasks')
     ]
     

@@ -73,13 +73,6 @@ DOMAIN_REGISTRY = {
         'create_function': 'create_dataset',
         'process_dataset': lambda dataset, num_samples: dataset['pairs']
     },
-    'mazes': {
-        'name': 'Mazes',
-        'description': 'Path-finding and navigation challenges',
-        'module': 'vmevalkit.tasks.external.videothinkbench_mazes_task',
-        'create_function': 'create_dataset',
-        'process_dataset': lambda dataset, num_samples: dataset['pairs']
-    },
     'text_centric_tasks': {
         'name': 'Text Centric Tasks',
         'description': 'Mathematical reasoning and multimodal understanding',

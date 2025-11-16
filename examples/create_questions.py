@@ -40,7 +40,7 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
             Examples:
-            # Download entire VideoThinkBench dataset (all 5 subsets, ~4.1k tasks)
+            # Download entire VideoThinkBench dataset (all 4 subsets, ~4k tasks)
             python create_questions.py --task videothinkbench
             
             # Generate 50 questions per domain (default) for original tasks
@@ -50,7 +50,7 @@ def main():
             python create_questions.py --task videothinkbench chess sudoku --pairs-per-domain 25
             
             # Download specific VideoThinkBench subsets
-            python create_questions.py --task arc_agi_2 visual_puzzles mazes
+            python create_questions.py --task arc_agi_2 visual_puzzles text_centric_tasks
             
             # Generate for all original domains
             python create_questions.py --task chess maze raven rotation sudoku object_subtraction --pairs-per-domain 50

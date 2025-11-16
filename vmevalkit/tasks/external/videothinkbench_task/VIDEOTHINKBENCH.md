@@ -10,13 +10,12 @@ VideoThinkBench combines multiple reasoning domains:
 - **ARC AGI 2**: Abstract reasoning and pattern recognition
 - **Eyeballing Puzzles**: Visual estimation and spatial judgment
 - **Visual Puzzles**: Multimodal reasoning challenges
-- **Mazes**: Path-finding and navigation
 - **Text Centric Tasks**: Mathematical and textual reasoning
 
 ## Data Source
 
 - **Dataset**: OpenMOSS-Team/VideoThinkBench
-- **Subsets**: All 5 subsets (ARC_AGI_2, Eyeballing_Puzzles, Visual_Puzzles, Mazes, Text_Centric_Tasks)
+- **Subsets**: All 4 subsets (ARC_AGI_2, Eyeballing_Puzzles, Visual_Puzzles, Text_Centric_Tasks)
 - **Split**: test
 - **Type**: HuggingFace meta-download
 - **Total Tasks**: ~4,100 reasoning tasks
@@ -37,7 +36,6 @@ Alternatively, you can download individual subsets:
 - `vmevalkit.tasks.external.videothinkbench_arc_agi_task`
 - `vmevalkit.tasks.external.videothinkbench_eyeballing_puzzles_task`
 - `vmevalkit.tasks.external.videothinkbench_visual_puzzles_task`
-- `vmevalkit.tasks.external.videothinkbench_mazes_task`
 - `vmevalkit.tasks.external.videothinkbench_text_centric_tasks_task`
 
 ## Task Format
@@ -84,6 +82,5 @@ Models are evaluated across all reasoning domains, providing comprehensive asses
 - [ARC_AGI.md](../videothinkbench_arc_agi_task/ARC_AGI.md)
 - [EYEBALLING_PUZZLES.md](../videothinkbench_eyeballing_puzzles_task/EYEBALLING_PUZZLES.md)
 - [VISUAL_PUZZLES.md](../videothinkbench_visual_puzzles_task/VISUAL_PUZZLES.md)
-- [MAZES.md](../videothinkbench_mazes_task/MAZES.md)
 - [TEXT_CENTRIC_TASKS.md](../videothinkbench_text_centric_tasks_task/TEXT_CENTRIC_TASKS.md)
 
