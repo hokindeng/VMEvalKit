@@ -31,6 +31,9 @@ uv run examples/generate_videos.py --model wan-2.1-flf2v-720p --task chess maze
 
 ## LTX-Video
 
+refer https://huggingface.co/Lightricks/LTX-Video-0.9.8-13B-distilled 
+
+LTX-Video is the first DiT-based video generation model capable of generating high-quality videos in real-time. It produces 30 FPS videos at a 1216×704 resolution faster than they can be watched.
 ### Usage
 
 ```bash

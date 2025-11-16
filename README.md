@@ -31,7 +31,6 @@ VMEvalKit provides unified access to **40 video generation models** across **11 
 
 | Provider | Models | Key Features | Hardware Requirements |
 |----------|---------|-------------|----------------------|
-| **LTX-Video** | 3 | 2B/13B variants, real-time generation | GPU with 16GB+ VRAM |
 | **HunyuanVideo** | 1 | High-quality 720p I2V | GPU with 24GB+ VRAM |
 | **VideoCrafter** | 1 | Text-guided video synthesis | GPU with 16GB+ VRAM |
 | **DynamiCrafter** | 3 | 256p/512p/1024p, image animation | GPU with 12-24GB VRAM |
