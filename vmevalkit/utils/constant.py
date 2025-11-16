@@ -82,5 +82,12 @@ DOMAIN_REGISTRY = {
         'module': 'vmevalkit.tasks.object_subtraction_task',
         'create_function': 'create_dataset',
         'process_dataset': lambda dataset, num_samples: dataset['pairs']
+    },
+    'sliding_puzzle': {
+        'name': 'Sliding Puzzle',
+        'description': 'Spatial reasoning and simple planning through near-complete sliding puzzles',
+        'module': 'vmevalkit.tasks.sliding_puzzle_task',
+        'create_function': 'create_dataset',
+        'process_dataset': lambda dataset, num_samples: dataset['pairs']
     }
 }
