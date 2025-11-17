@@ -87,10 +87,10 @@ DOMAIN_REGISTRY = {
         'create_function': 'create_dataset',
         'process_dataset': lambda dataset, num_samples: dataset['pairs']
     },
-    'object_rearrangement': {
+    'object_rearr': {
         'name': 'Object Rearrangement',
         'description': 'Spatial reasoning and object manipulation with spatial relations',
-        'module': 'vmevalkit.tasks.object_rearrangement_task.object_rearrangement_reasoning',
+        'module': 'vmevalkit.tasks.object_rearr_task.object_rearr',
         'create_function': 'create_dataset',
         'process_dataset': lambda dataset, num_samples: dataset['pairs']
     },
