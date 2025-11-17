@@ -200,7 +200,7 @@ def download_hf_domain_to_folders(domain_name: str, output_base: Path) -> List[D
 
 
 def generate_domain_to_folders(domain_name: str, num_samples: int, 
-                              output_base: Path, random_seed: int) -> List[Dict[str, Any]]:
+                              output_base: Path, random_seed: int | None) -> List[Dict[str, Any]]:
     """
     Generate tasks for a specific domain directly into per-question folder structure.
     
@@ -208,7 +208,7 @@ def generate_domain_to_folders(domain_name: str, num_samples: int,
         domain_name: Name of the domain (chess, maze, raven, rotation)
         num_samples: Number of task pairs to generate
         output_base: Base output directory for questions
-        random_seed: Random seed for reproducible generation
+        random_seed: Random seed for reproducible generation (None for non-deterministic)
         
     Returns:
         List of task pair metadata dictionaries
@@ -222,7 +222,8 @@ def generate_domain_to_folders(domain_name: str, num_samples: int,
     domain_dir = output_base / f"{domain_name}_task"
     domain_dir.mkdir(parents=True, exist_ok=True)
     
-    random.seed(random_seed + hash(domain_name))
+    if random_seed is not None:
+        random.seed(random_seed + hash(domain_name))
     
     generated_pairs = []
     
@@ -280,14 +281,14 @@ def generate_domain_to_folders(domain_name: str, num_samples: int,
     
     return generated_pairs
 
-def create_vmeval_dataset_direct(pairs_per_domain: int = 50, random_seed: int = 42, 
+def create_vmeval_dataset_direct(pairs_per_domain: int = 50, random_seed: int | None = 42, 
                                  selected_tasks: List[str] = None) -> Tuple[Dict[str, Any], str]:
     """
     Create VMEvalKit Dataset directly into per-question folder structure.
     
     Args:
         pairs_per_domain: Number of task pairs to generate per domain (default: 50)
-        random_seed: Random seed for reproducible generation (default: 42)
+        random_seed: Random seed for reproducible generation (default: 42, None for non-deterministic)
         selected_tasks: List of task names to generate. If None, generate all tasks.
         
     Returns:
@@ -329,7 +330,8 @@ def create_vmeval_dataset_direct(pairs_per_domain: int = 50, random_seed: int = 
         pairs = generate_domain_to_folders(domain_name, num_samples, output_base, random_seed)
         all_pairs.extend(pairs)
     
-    random.seed(random_seed)
+    if random_seed is not None:
+        random.seed(random_seed)
     random.shuffle(all_pairs)
     
     creation_timestamp = datetime.now().isoformat() + 'Z'
