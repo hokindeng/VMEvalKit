@@ -87,6 +87,13 @@ DOMAIN_REGISTRY = {
         'create_function': 'create_dataset',
         'process_dataset': lambda dataset, num_samples: dataset['pairs']
     },
+    'object_rearrangement': {
+        'name': 'Object Rearrangement',
+        'description': 'Spatial reasoning and object manipulation with spatial relations',
+        'module': 'vmevalkit.tasks.object_rearrangement_task.object_rearrangement_reasoning',
+        'create_function': 'create_dataset',
+        'process_dataset': lambda dataset, num_samples: dataset['pairs']
+    },
     'mme_cof': {
         'name': 'MME-CoF',
         'description': 'Video Chain-of-Frame reasoning evaluation across 16 cognitive domains (59 tasks)',
