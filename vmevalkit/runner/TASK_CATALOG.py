@@ -93,6 +93,13 @@ DOMAIN_REGISTRY = {
         'module': 'vmevalkit.tasks.external.mme_cof_task',
         'create_function': 'create_dataset',
         'process_dataset': lambda dataset, num_samples: dataset['pairs']
+    },
+    'perspective_taking': {
+        'name': 'Perspective Taking',
+        'description': 'Spatial reasoning and viewpoint transformation from agent perspective',
+        'module': 'vmevalkit.tasks.perspective_taking_task',
+        'create_function': 'create_dataset',
+        'process_dataset': lambda dataset, num_samples: dataset['pairs']
     }
 }
 
