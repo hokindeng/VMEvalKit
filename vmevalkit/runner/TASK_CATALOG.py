@@ -87,6 +87,13 @@ DOMAIN_REGISTRY = {
         'create_function': 'create_dataset',
         'process_dataset': lambda dataset, num_samples: dataset['pairs']
     },
+    'shape_sorter': {
+        'name': 'Shape Sorter',
+        'description': '2D shape matching under a fixed top-down camera',
+        'module': 'vmevalkit.tasks.shape_sorter_task',
+        'create_function': 'create_dataset',
+        'process_dataset': lambda dataset, num_samples: dataset['pairs']
+    },
     'mme_cof': {
         'name': 'MME-CoF',
         'description': 'Video Chain-of-Frame reasoning evaluation across 16 cognitive domains (59 tasks)',
