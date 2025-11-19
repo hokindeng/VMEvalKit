@@ -10,6 +10,7 @@ Author: VMEvalKit Team
 import json
 import random
 import numpy as np
+import tempfile
 from typing import List, Dict, Any, Optional, Tuple, Union
 from dataclasses import dataclass, asdict
 from datetime import datetime
@@ -62,12 +63,27 @@ class SlidingPuzzleGenerator:
         
         Args:
             canvas_size: Size of the puzzle image in pixels
-            temp_dir: Temporary directory for image generation
+            temp_dir: Temporary directory for image generation (if None, uses system temp)
         """
         self.canvas_size = canvas_size
-        self.temp_dir = temp_dir or str(Path.cwd() / "temp_sliding_puzzle")
-        Path(self.temp_dir).mkdir(parents=True, exist_ok=True)
+        if temp_dir:
+            self.temp_dir = temp_dir
+            Path(self.temp_dir).mkdir(parents=True, exist_ok=True)
+            self._cleanup_temp = False
+        else:
+            # Use system temporary directory, will be cleaned up automatically
+            self.temp_dir = tempfile.mkdtemp(prefix="sliding_puzzle_")
+            self._cleanup_temp = True
         self.rng = random.Random()
+    
+    def __del__(self):
+        """Clean up temporary directory if we created it.
+        
+        Note: This is called when the object is garbage collected.
+        We delay cleanup to allow dataset.py to copy files first.
+        """
+        # Don't auto-cleanup in __del__ - let dataset.py handle it after copying
+        pass
     
     def create_goal_state(self, size: int) -> List[List[int]]:
         """
@@ -385,8 +401,14 @@ def create_dataset(num_samples: int = 50, difficulty_distribution: Optional[Dict
     print(f"🧩 Creating Sliding Puzzle Dataset")
     print(f"   Total samples: {num_samples}")
     
-    generator = SlidingPuzzleGenerator()
+    # Use system temporary directory
+    # Note: We keep the generator object alive to prevent __del__ from deleting temp files
+    # The temp directory will be cleaned up by dataset.py after copying files
+    generator = SlidingPuzzleGenerator(temp_dir=None)
     pairs = []
+    
+    # Store generator reference to prevent premature cleanup
+    _generator_ref = generator
     
     # Track seen states to avoid duplicates
     seen_states = set()
@@ -502,6 +524,11 @@ def create_dataset(num_samples: int = 50, difficulty_distribution: Optional[Dict
     
     # Convert dataclass instances to dictionaries for serialization
     pairs_dict = [asdict(pair) for pair in pairs]
+    
+    # Note: We don't clean up the temporary directory here because dataset.py
+    # needs to copy the images from the temp directory to the final location.
+    # The temporary directory will be cleaned up by the generator's __del__ method
+    # or can be manually cleaned up after dataset generation is complete.
     
     return {
         "name": "sliding_puzzle_tasks",

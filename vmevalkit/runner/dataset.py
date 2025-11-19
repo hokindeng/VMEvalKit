@@ -253,18 +253,46 @@ def generate_domain_to_folders(domain_name: str, num_samples: int,
         final_rel = pair.get("final_image_path")
         
         if first_rel:
-            src_first = base_dir / first_rel
+            # Handle both absolute and relative paths
+            src_first = Path(first_rel) if Path(first_rel).is_absolute() else base_dir / first_rel
             dst_first = q_dir / "first_frame.png"
             if src_first.exists():
                 shutil.copyfile(src_first, dst_first)
                 pair['first_image_path'] = str(Path(domain_name + "_task") / pair_id / "first_frame.png")
+            else:
+                # For sliding_puzzle, regenerate image from state data if file not found
+                if domain_name == "sliding_puzzle" and pair.get("initial_state") and pair.get("puzzle_size"):
+                    try:
+                        from vmevalkit.tasks.sliding_puzzle_task.sliding_puzzle_reasoning import SlidingPuzzleGenerator
+                        generator = SlidingPuzzleGenerator()
+                        size = pair["puzzle_size"][0] if isinstance(pair["puzzle_size"], list) else pair["puzzle_size"][0]
+                        generator.render_puzzle(pair["initial_state"], size, dst_first)
+                        pair['first_image_path'] = str(Path(domain_name + "_task") / pair_id / "first_frame.png")
+                    except Exception as e:
+                        print(f"      ⚠️  Warning: Could not regenerate first image: {e}")
+                else:
+                    print(f"      ⚠️  Warning: Source image not found: {src_first}")
                 
         if final_rel:
-            src_final = base_dir / final_rel
+            # Handle both absolute and relative paths
+            src_final = Path(final_rel) if Path(final_rel).is_absolute() else base_dir / final_rel
             dst_final = q_dir / "final_frame.png"
             if src_final.exists():
                 shutil.copyfile(src_final, dst_final)
                 pair['final_image_path'] = str(Path(domain_name + "_task") / pair_id / "final_frame.png")
+            else:
+                # For sliding_puzzle, regenerate image from state data if file not found
+                if domain_name == "sliding_puzzle" and pair.get("goal_state") and pair.get("puzzle_size"):
+                    try:
+                        from vmevalkit.tasks.sliding_puzzle_task.sliding_puzzle_reasoning import SlidingPuzzleGenerator
+                        generator = SlidingPuzzleGenerator()
+                        size = pair["puzzle_size"][0] if isinstance(pair["puzzle_size"], list) else pair["puzzle_size"][0]
+                        generator.render_puzzle(pair["goal_state"], size, dst_final)
+                        pair['final_image_path'] = str(Path(domain_name + "_task") / pair_id / "final_frame.png")
+                    except Exception as e:
+                        print(f"      ⚠️  Warning: Could not regenerate final image: {e}")
+                else:
+                    print(f"      ⚠️  Warning: Source image not found: {src_final}")
         
         prompt_text = pair.get("prompt", "")
         (q_dir / "prompt.txt").write_text(prompt_text)
@@ -275,6 +303,20 @@ def generate_domain_to_folders(domain_name: str, num_samples: int,
             json.dump(pair, f, indent=2, default=str)
         
         generated_pairs.append(pair)
+    
+    # Clean up temporary directories for sliding_puzzle tasks
+    # (they use system temp directories that need cleanup)
+    if domain_name == "sliding_puzzle":
+        # Find and clean up any sliding_puzzle temp directories
+        import tempfile
+        import glob
+        temp_pattern = str(Path(tempfile.gettempdir()) / "sliding_puzzle_*")
+        for temp_dir in glob.glob(temp_pattern):
+            try:
+                if Path(temp_dir).exists():
+                    shutil.rmtree(temp_dir)
+            except Exception:
+                pass  # Ignore cleanup errors
     
     print(f"   ✅ Generated {len(generated_pairs)} {domain_name} task pairs in {domain_dir}\n")
     
