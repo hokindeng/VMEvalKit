@@ -173,6 +173,7 @@ class ShapeSorterGenerator:
         self.renderer = ShapeSorterRenderer(canvas)
         self.rng = random.Random()
         self.output_root = Path("data/questions/shape_sorter_task")
+        self._seen_signatures: set[str] = set()
 
     def generate(
         self,
@@ -180,11 +181,26 @@ class ShapeSorterGenerator:
         difficulty: str = "medium",
         num_shapes: Optional[int] = None,
         seed: Optional[int] = None,
+        ensure_unique: bool = True,
+        max_attempts: int = 25,
     ) -> Dict:
         if seed is not None:
             self.rng.seed(seed)
-        count = num_shapes or self._shape_count_for_difficulty(difficulty)
-        specs, layout_variant = self._create_specs(count)
+
+        attempt = 0
+        signature = None
+        while True:
+            attempt += 1
+            count = num_shapes or self._shape_count_for_difficulty(difficulty)
+            specs, layout_variant = self._create_specs(count)
+            signature = self._build_signature(specs, layout_variant)
+            if not ensure_unique or signature not in self._seen_signatures:
+                break
+            if attempt >= max_attempts:
+                raise RuntimeError("Failed to generate unique Shape Sorter sample after multiple attempts.")
+
+        if ensure_unique and signature is not None:
+            self._seen_signatures.add(signature)
 
         question_dir = self.output_root / task_id
         question_dir.mkdir(parents=True, exist_ok=True)
@@ -351,6 +367,28 @@ class ShapeSorterGenerator:
             "colors": sorted({spec.color_name for spec in specs}),
             "created_at": datetime.now().isoformat(),
         }
+
+    def _build_signature(self, specs: Sequence[ShapeSpec], layout_variant: str) -> str:
+        """
+        Create a deterministic signature for a set of specs so we can avoid duplicates.
+        """
+        quantized = []
+        for spec in specs:
+            quantized.append(
+                (
+                    spec.shape,
+                    spec.color_name,
+                    round(spec.start[0], 1),
+                    round(spec.start[1], 1),
+                    round(spec.target[0], 1),
+                    round(spec.target[1], 1),
+                    round(spec.size, 1),
+                )
+            )
+        quantized.sort()
+        return f"{layout_variant}|{len(specs)}|" + "|".join(
+            ",".join(map(str, item)) for item in quantized
+        )
 
 
 def create_dataset(
