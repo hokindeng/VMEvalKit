@@ -261,13 +261,12 @@ def generate_domain_to_folders(domain_name: str, num_samples: int,
                 shutil.copyfile(src_first, dst_first)
                 pair['first_image_path'] = str(Path(domain_name + "_task") / pair_id / "first_frame.png")
             else:
-                # For sliding_puzzle, regenerate image from state data if file not found
-                if domain_name == "sliding_puzzle" and pair.get("initial_state") and pair.get("puzzle_size"):
+                # Try to regenerate image using task-specific helper function if available
+                regenerate_func = getattr(module, 'regenerate_image_from_state', None)
+                if regenerate_func and pair.get("initial_state") and pair.get("puzzle_size"):
                     try:
-                        from vmevalkit.tasks.sliding_puzzle_task.sliding_puzzle_reasoning import SlidingPuzzleGenerator
-                        generator = SlidingPuzzleGenerator()
-                        size = pair["puzzle_size"][0] if isinstance(pair["puzzle_size"], list) else pair["puzzle_size"][0]
-                        generator.render_puzzle(pair["initial_state"], size, dst_first)
+                        size = pair["puzzle_size"][0] if isinstance(pair["puzzle_size"], (list, tuple)) else pair["puzzle_size"]
+                        regenerate_func(pair["initial_state"], size, dst_first)
                         pair['first_image_path'] = str(Path(domain_name + "_task") / pair_id / "first_frame.png")
                     except Exception as e:
                         print(f"      ⚠️  Warning: Could not regenerate first image: {e}")
@@ -282,13 +281,12 @@ def generate_domain_to_folders(domain_name: str, num_samples: int,
                 shutil.copyfile(src_final, dst_final)
                 pair['final_image_path'] = str(Path(domain_name + "_task") / pair_id / "final_frame.png")
             else:
-                # For sliding_puzzle, regenerate image from state data if file not found
-                if domain_name == "sliding_puzzle" and pair.get("goal_state") and pair.get("puzzle_size"):
+                # Try to regenerate image using task-specific helper function if available
+                regenerate_func = getattr(module, 'regenerate_image_from_state', None)
+                if regenerate_func and pair.get("goal_state") and pair.get("puzzle_size"):
                     try:
-                        from vmevalkit.tasks.sliding_puzzle_task.sliding_puzzle_reasoning import SlidingPuzzleGenerator
-                        generator = SlidingPuzzleGenerator()
-                        size = pair["puzzle_size"][0] if isinstance(pair["puzzle_size"], list) else pair["puzzle_size"][0]
-                        generator.render_puzzle(pair["goal_state"], size, dst_final)
+                        size = pair["puzzle_size"][0] if isinstance(pair["puzzle_size"], (list, tuple)) else pair["puzzle_size"]
+                        regenerate_func(pair["goal_state"], size, dst_final)
                         pair['final_image_path'] = str(Path(domain_name + "_task") / pair_id / "final_frame.png")
                     except Exception as e:
                         print(f"      ⚠️  Warning: Could not regenerate final image: {e}")
@@ -305,19 +303,14 @@ def generate_domain_to_folders(domain_name: str, num_samples: int,
         
         generated_pairs.append(pair)
     
-    # Clean up temporary directories for sliding_puzzle tasks
-    # (they use system temp directories that need cleanup)
-    if domain_name == "sliding_puzzle":
-        # Find and clean up any sliding_puzzle temp directories
-        import tempfile
-        import glob
-        temp_pattern = str(Path(tempfile.gettempdir()) / "sliding_puzzle_*")
-        for temp_dir in glob.glob(temp_pattern):
-            try:
-                if Path(temp_dir).exists():
-                    shutil.rmtree(temp_dir)
-            except Exception:
-                pass  # Ignore cleanup errors
+    # Clean up task-specific resources if needed (e.g., temporary directories)
+    # Check if dataset has a generator reference that needs cleanup
+    if hasattr(dataset, '_generator') and dataset._generator:
+        try:
+            if hasattr(dataset._generator, 'cleanup_temp_dir'):
+                dataset._generator.cleanup_temp_dir()
+        except Exception:
+            pass  # Ignore cleanup errors
     
     print(f"   ✅ Generated {len(generated_pairs)} {domain_name} task pairs in {domain_dir}\n")
     

@@ -76,14 +76,31 @@ class SlidingPuzzleGenerator:
             self._cleanup_temp = True
         self.rng = random.Random()
     
+    def cleanup_temp_dir(self):
+        """Clean up temporary directory if we created it.
+        
+        This should be called after dataset.py has finished copying files.
+        """
+        if self._cleanup_temp and Path(self.temp_dir).exists():
+            try:
+                import shutil
+                shutil.rmtree(self.temp_dir)
+            except Exception:
+                pass  # Ignore cleanup errors
+    
     def __del__(self):
         """Clean up temporary directory if we created it.
         
         Note: This is called when the object is garbage collected.
         We delay cleanup to allow dataset.py to copy files first.
         """
-        # Don't auto-cleanup in __del__ - let dataset.py handle it after copying
-        pass
+        # Try to cleanup, but don't fail if already cleaned up
+        if self._cleanup_temp and Path(self.temp_dir).exists():
+            try:
+                import shutil
+                shutil.rmtree(self.temp_dir)
+            except Exception:
+                pass  # Ignore cleanup errors
     
     def create_goal_state(self, size: int) -> List[List[int]]:
         """
@@ -256,13 +273,13 @@ class SlidingPuzzleGenerator:
         tile_size = 0.9  # Slightly smaller than 1 to show grid lines
         margin = (1 - tile_size) / 2
         
-        # Adjust font size based on puzzle size
+        # Adjust font size based on puzzle size (increased for better video recognition)
         if size == 3:
-            fontsize = 24
+            fontsize = 32
         elif size == 4:
-            fontsize = 18
+            fontsize = 24
         else:  # size == 5
-            fontsize = 14
+            fontsize = 20
         
         # Draw tiles
         for i in range(size):
@@ -313,16 +330,14 @@ class SlidingPuzzleGenerator:
             self.rng.seed(seed)
         
         # Determine puzzle size and number of moves based on difficulty
-        # Easy = 3x3 (2 moves), Medium = 4x4 (2 moves), Hard = 5x5 (2 moves)
+        # All difficulties use 2 moves
+        num_moves = 2
         if difficulty == "easy":
             size = 3
-            num_moves = 2
         elif difficulty == "medium":
             size = 4
-            num_moves = 2
-        else:  # hard = 5x5 (2 moves)
+        else:  # hard = 5x5
             size = 5
-            num_moves = 2
         
         # Generate near-complete puzzle
         initial_state, solution_length = self.generate_near_complete_puzzle(
@@ -525,14 +540,28 @@ def create_dataset(num_samples: int = 50, difficulty_distribution: Optional[Dict
     # Convert dataclass instances to dictionaries for serialization
     pairs_dict = [asdict(pair) for pair in pairs]
     
-    # Note: We don't clean up the temporary directory here because dataset.py
-    # needs to copy the images from the temp directory to the final location.
-    # The temporary directory will be cleaned up by the generator's __del__ method
-    # or can be manually cleaned up after dataset generation is complete.
-    
-    return {
+    # Return dataset with generator reference for cleanup
+    dataset = {
         "name": "sliding_puzzle_tasks",
         "description": f"Sliding puzzle dataset ({len(pairs)} pairs)",
-        "pairs": pairs_dict
+        "pairs": pairs_dict,
+        "_generator": generator  # Keep reference for cleanup
     }
+    
+    return dataset
+
+
+def regenerate_image_from_state(state: List[List[int]], size: int, output_path: Union[str, Path]):
+    """
+    Regenerate puzzle image from state data.
+    
+    This is a helper function for dataset.py to regenerate images if needed.
+    
+    Args:
+        state: 2D list representing the puzzle state
+        size: Puzzle size (3, 4, or 5)
+        output_path: Path where the image should be saved
+    """
+    generator = SlidingPuzzleGenerator()
+    generator.render_puzzle(state, size, output_path)
 
