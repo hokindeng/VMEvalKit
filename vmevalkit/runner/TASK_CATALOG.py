@@ -87,6 +87,13 @@ DOMAIN_REGISTRY = {
         'create_function': 'create_dataset',
         'process_dataset': lambda dataset, num_samples: dataset['pairs']
     },
+    'object_rearr': {
+        'name': 'Object Rearrangement',
+        'description': 'Spatial reasoning and object manipulation with spatial relations',
+        'module': 'vmevalkit.tasks.object_rearr_task.object_rearr',
+        'create_function': 'create_dataset',
+        'process_dataset': lambda dataset, num_samples: dataset['pairs']
+    },
     'sliding_puzzle': {
         'name': 'Sliding Puzzle',
         'description': 'Spatial reasoning and simple planning through near-complete sliding puzzles',

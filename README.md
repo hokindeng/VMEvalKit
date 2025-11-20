@@ -351,10 +351,6 @@ data/
 │               └── <task_id>/
 │                   ├── human-score.json     # Human scoring scores
 │                   └── GPT4OScorer.json     # GPT-4O scoring scores
-│
-└── data_logging/                    # Version tracking
-    ├── version_log.json            # Version history
-    └── versions/                   # Version snapshots
 ```
 
 ### Synchronization
