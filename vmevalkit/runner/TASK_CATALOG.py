@@ -94,6 +94,13 @@ DOMAIN_REGISTRY = {
         'create_function': 'create_dataset',
         'process_dataset': lambda dataset, num_samples: dataset['pairs']
     },
+    'sliding_puzzle': {
+        'name': 'Sliding Puzzle',
+        'description': 'Spatial reasoning and simple planning through near-complete sliding puzzles',
+        'module': 'vmevalkit.tasks.sliding_puzzle_task',
+        'create_function': 'create_dataset',
+        'process_dataset': lambda dataset, num_samples: dataset['pairs']
+    },
     'mme_cof': {
         'name': 'MME-CoF',
         'description': 'Video Chain-of-Frame reasoning evaluation across 16 cognitive domains (59 tasks)',
