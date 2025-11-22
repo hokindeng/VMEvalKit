@@ -117,6 +117,13 @@ DOMAIN_REGISTRY = {
         'hf': True,
         'hf_dataset': 'camelCase12/vpct-1',
         'hf_special_format': True  # Indicates file-based format, not standard dataset format
+    },
+    'tetris': {
+        'name': 'Tetris',
+        'description': 'Tetris line-clearing reasoning tasks with animation instructions',
+        'module': 'vmevalkit.tasks.tetris_task',
+        'create_function': 'create_dataset',
+        'process_dataset': lambda dataset, num_samples: dataset['pairs']
     }
 }
 
