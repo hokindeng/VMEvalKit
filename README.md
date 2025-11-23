@@ -4,8 +4,9 @@ A framework to score reasoning capabilities in video generation models at scale,
 
 
 <p align="center">
-    <a href="asset/leaderboard.html">🏆 Leaderboard (Under Construction)</a> •
+    <!-- <a href="asset/leaderboard.html">🏆 Leaderboard (Under Construction)</a> • -->
     <a href="https://grow-ai-like-a-child.com/video-reason/">🔍 Preliminary results</a> 
+    [![WeChat](https://img.shields.io/badge/WeChat--Group-07C160?style=for-the-badge&logo=wechat&logoColor=white)](https://github.com/hokindeng/VMEvalKit/issues/132)
 </p>
 
 ![VMEvalKit Framework](paper/video-models-start-to-solve/assets/draft_1.jpg)
@@ -198,6 +199,10 @@ Sudoku Solving
 
 Every VMEvalKit dataset consists of **Task Pairs** - the basic unit for video reasoning scoring:
 
+We have two types of tasks:
+
+### final image
+
 Each Task Pair consists of three core components:
 - 📸 **Initial state image** (`first_frame.png`): shows the starting point or problem to be solved
 - 🎯 **Final state image** (`final_frame.png`): illustrates the goal state or solution  
@@ -206,6 +211,15 @@ Each Task Pair consists of three core components:
 There is also an accompanying `question_metadata.json` file with rich metadata. Each task pair is organized in its own folder (`data/questions/{domain}_task/{question_id}/`) containing all four files. 
 
 ![Task Pair Structure](paper/video-models-start-to-solve/assets/question_set.jpg)
+
+### final text answer
+
+Each Task Pair consists of three core components:
+- 📸 **Initial state image** (`first_frame.png`): shows the starting point or problem to be solved
+- 📝 **Text answer** (`goal.txt`): provides the text answer to the question
+- 📝 **Text prompt** (`prompt.txt`): provides natural language instructions for the video model
+
+
 
 ## Inference Architecture
 
@@ -296,7 +310,6 @@ python -m vmevalkit.runner.score human \
 python -m vmevalkit.runner.score gpt4o \
   --experiment pilot_experiment \
   --output-dir data/scorings \
-  --temperature 0.1 
 ```
 
 Use as Python Modules
