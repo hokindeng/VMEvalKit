@@ -370,14 +370,9 @@ class MirrorClockTaskGenerator:
         future_time_str = format_time(future_hours, future_minutes)
         time_delta_str = format_time_delta(add_hours, add_minutes)
 
-        # Create prompt with time delta
-        base_prompts = [
-            f"This is a mirrored clock. If the original clock moves forward by {time_delta_str}, what time will it show?",
-            f"The image shows a horizontally flipped clock. After {time_delta_str} passes on the original clock, what will be the new time?",
-            f"This mirror-reflected clock needs to advance {time_delta_str}. Show what the original clock will display after this time passes.",
-            f"From this mirrored clock, determine the original time, then add {time_delta_str}. What is the result?",
-        ]
-        prompt = random.choice(base_prompts)
+        # Select prompt and fill in time_delta placeholder
+        prompt_template = random.choice(self.prompts)
+        prompt = prompt_template.format(time_delta=time_delta_str)
 
         # Save prompt
         prompt_path = task_path / "prompt.txt"

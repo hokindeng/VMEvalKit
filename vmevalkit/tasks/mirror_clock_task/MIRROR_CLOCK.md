@@ -227,13 +227,6 @@ This task helps evaluate whether video models can:
 - **Design**: Understanding symmetry and reflection
 - **Physics**: Mirror optics and transformations
 
-## References
-
-- Spatial Reasoning in Cognitive Science
-- Mirror Reflection Mathematics
-- Clock Reading as Cognitive Task
-- VMEvalKit Framework: Task implementation guidelines
-
 ## Version History
 
-- **v1.0.0** (2024): Initial release with three difficulty levels
+- **v1.0.0** (2025): Initial release with three difficulty levels

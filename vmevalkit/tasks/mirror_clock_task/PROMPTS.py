@@ -2,20 +2,16 @@
 Prompts for Mirror Clock Reasoning Tasks
 
 This file centralizes all prompts used for mirror clock tasks.
-These prompts are for the future time prediction variant.
-The actual prompts are generated dynamically with time delta in mirror_clock_reasoning.py
+Prompts use {time_delta} placeholder for dynamic time insertion.
 """
 
-# Note: Prompts are generated dynamically in the task generator
-# to include the specific time delta (e.g., "2 hours", "1 hour and 30 minutes")
-# This file is kept for consistency with the framework structure
-
+# Prompts with {time_delta} placeholder
+# Example: {time_delta} will be replaced with "2 hours", "1 hour and 30 minutes", etc.
 PROMPTS = [
-    # These are template examples - actual prompts include time delta
-    "This is a mirrored clock. If the original clock moves forward, what time will it show?",
-    "The image shows a horizontally flipped clock. After time passes on the original clock, what will be the new time?",
-    "This mirror-reflected clock needs to advance. Show what the original clock will display after this time passes.",
-    "From this mirrored clock, determine the original time, then add time. What is the result?",
+    "This is a mirrored clock. If the original clock moves forward by {time_delta}, what time will it show?",
+    "The image shows a horizontally flipped clock. After {time_delta} passes on the original clock, what will be the new time?",
+    "This mirror-reflected clock needs to advance {time_delta}. Show what the original clock will display after this time passes.",
+    "From this mirrored clock, determine the original time, then add {time_delta}. What is the result?",
 ]
 
 
