@@ -101,19 +101,27 @@ python examples/create_questions.py --task chess maze --pairs-per-domain 5
 
 ### 2️⃣ Generate Videos
 ```bash
-# set Luma key in .env file 
-# Run on specific model (e.g., Luma Ray 2)
-python examples/generate_videos.py --model luma-ray-2 --task chess maze
+# Run on specific model (e.g., stable video diffusion)
+python examples/generate_videos.py --model svd --task chess maze
 
 # Output: Creates data/outputs/pilot_experiment/ with generated videos
+# for close source model, need to set key in .env file
 ```
 
 ### 3️⃣ Score Results
 ```bash
-# Option A: Human scoring via web interface
+
+
+# open source VLM Automated scoring
+bash script/lmdeploy_server.sh
+# in another terminal
+bash script/score.sh
+
+
+# Human scoring via web interface
 python examples/score_videos.py human
 
-# Option B: Automated GPT-4O scoring
+# Automated GPT-4O scoring
 python examples/score_videos.py gpt4o
 ```
 
