@@ -9,7 +9,6 @@ uv pip install transformers diffusers
 
 ## svd
 
-
 It takes  20GB vram.
 
 ```bash

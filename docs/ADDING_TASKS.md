@@ -170,6 +170,7 @@ def create_image(data: Any, output_path: Path):
 
 **5. Run**: `python vmevalkit/runner/create_dataset.py --pairs-per-domain 50`
 
+6. modify TASK_GUIDANCE in vmevalkit/eval/gpt4o_eval.py and vmevalkit/eval/internvl.py. Add the score prompt for the task.
 ---
 
 ## 📥 Path B: Downloaded Task
@@ -223,6 +224,7 @@ def create_dataset(num_samples: int = None) -> Dict[str, Any]:
 
 **4. Run**: `python vmevalkit/runner/create_dataset.py --pairs-per-domain all`
 
+5. modify TASK_GUIDANCE in vmevalkit/eval/gpt4o_eval.py and vmevalkit/eval/internvl.py. Add the score prompt for the task.
 ---
 
 ## 📚 Reference: Complete Examples
@@ -302,13 +304,15 @@ open data/questions/your_task_task/your_task_0000/first_frame.png
 - [ ] Module folder and `__init__.py` created
 - [ ] `create_dataset()` function implemented
 - [ ] Entry in `DOMAIN_REGISTRY`
-- [ ] PNG images: `first_frame.png`, `final_frame.png`
+- [ ] PNG images: `first_frame.png`
 - [ ] All required JSON fields present
 - [ ] Documentation (.md file)
+- [ ] modify TASK_GUIDANCE in vmevalkit/eval/gpt4o_eval.py and vmevalkit/eval/internvl.py. Add the score prompt for the task.
 
 **Locally Generated**: 
 - [ ] `PROMPTS.py` with templates
 - [ ] Image generation logic
+
 
 **Downloaded**: 
 - [ ] Download/conversion logic
@@ -330,4 +334,4 @@ Two paths for adding tasks:
 **Downloaded**: 
 1. Register → 2. Create module → 3. Implement download → 4. Convert format → 5. Test
 
-Both use the same `create_dataset()` interface. Mix and match as needed! 🚀
+Both use the same `create_dataset()` interface.
