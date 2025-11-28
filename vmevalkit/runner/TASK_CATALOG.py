@@ -94,6 +94,10 @@ DOMAIN_REGISTRY = {
         'create_function': 'create_dataset',
         'process_dataset': lambda dataset, num_samples: dataset['pairs']
     },
+    'shape_sorter': {
+        'name': 'Shape Sorter',
+        'description': '2D shape matching under a fixed top-down camera',
+        'module': 'vmevalkit.tasks.shape_sorter_task',
     'object_rearr': {
         'name': 'Object Rearrangement',
         'description': 'Spatial reasoning and object manipulation with spatial relations',
