@@ -224,18 +224,24 @@ def generate_domain_to_folders(domain_name: str, num_samples: int,
         final_rel = pair.get("final_image_path")
         
         if first_rel:
-            src_first = base_dir / first_rel
+            # Handle both absolute and relative paths
+            src_first = Path(first_rel) if Path(first_rel).is_absolute() else base_dir / first_rel
             dst_first = q_dir / "first_frame.png"
             if src_first.exists():
                 shutil.copyfile(src_first, dst_first)
                 pair['first_image_path'] = str(Path(domain_name + "_task") / pair_id / "first_frame.png")
+            else:
+                print(f"      ⚠️  Warning: Source image not found: {src_first}")
                 
         if final_rel:
-            src_final = base_dir / final_rel
+            # Handle both absolute and relative paths
+            src_final = Path(final_rel) if Path(final_rel).is_absolute() else base_dir / final_rel
             dst_final = q_dir / "final_frame.png"
             if src_final.exists():
                 shutil.copyfile(src_final, dst_final)
                 pair['final_image_path'] = str(Path(domain_name + "_task") / pair_id / "final_frame.png")
+            else:
+                print(f"      ⚠️  Warning: Source image not found: {src_final}")
         
         prompt_text = pair.get("prompt", "")
         (q_dir / "prompt.txt").write_text(prompt_text)
