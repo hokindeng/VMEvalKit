@@ -5,8 +5,8 @@ models:
   - model: wan
 
 datasets:
-  - task: maze_dataset
+  - task: maze
     pairs_per_domain: 5
-  - task: chess_dataset
+  - task: chess
     pairs_per_domain: 5
 

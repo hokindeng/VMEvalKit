@@ -1,32 +1,9 @@
 # VMEvalKit Inference Module
 
-A powerful, production-ready inference system for running video generation models at scale. Features unified API access to 40+ models, automatic error handling, intelligent resume capability, and structured output management for reproducible research.
-
 ## 🚀 Quick Start
 
 ```python
-from vmevalkit.runner.inference import InferenceRunner
-
-# Initialize runner - creates structured output directories
-runner = InferenceRunner(output_dir="data/outputs")
-
-# Generate video showing reasoning process
-result = runner.run(
-    model_name="luma-ray-2",
-    image_path="data/questions/maze_task/maze_0000/first_frame.png",
-    text_prompt="Navigate the green dot through the maze corridors to reach the red flag",
-    question_data={"id": "maze_0000", "domain": "maze"}  # Optional metadata
-)
-
-# Each inference creates a self-contained output folder:
-print(f"📁 Output folder: {result['inference_dir']}")
-# Contains:
-# ├── video/generated_video.mp4    # The generated video
-# ├── question/                    # Input data archive
-# │   ├── first_frame.png         # Input image
-# │   ├── prompt.txt              # Text prompt
-# │   └── question_metadata.json  # Task metadata
-# └── metadata.json               # Complete inference record
+python run.py configs/demo.yaml
 ```
 
 ## 📚 Core Concepts

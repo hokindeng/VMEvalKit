@@ -268,11 +268,6 @@ def create_vmeval_dataset_direct(pairs_per_domain: int = 50, random_seed: int | 
     num_domains = len(domains_to_generate)
     total_pairs = pairs_per_domain * num_domains
     
-    print("=" * 70)
-    print("🚀 VMEvalKit Dataset Creation - Direct Folder Generation")
-    print(f"🎯 Total target: {total_pairs} task pairs across {num_domains} domain(s)")
-    print("=" * 70)
-    
     base_dir = Path(__file__).parent.parent.parent
     output_base = base_dir / "data" / "questions"
     output_base.mkdir(parents=True, exist_ok=True)
@@ -281,12 +276,6 @@ def create_vmeval_dataset_direct(pairs_per_domain: int = 50, random_seed: int | 
         domain: pairs_per_domain 
         for domain in domains_to_generate
     }
-    
-    print(f"📈 Task Distribution:")
-    print(f"   📌 Generating {pairs_per_domain} task pairs per reasoning domain")
-    for domain, count in allocation.items():
-        print(f"   {domain.title():10}: {count:3d} task pairs")
-    print()
     
     all_pairs = []
     

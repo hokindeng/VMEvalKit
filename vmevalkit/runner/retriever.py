@@ -1,4 +1,4 @@
-from pathlib import Path
+
 from typing import List, Dict, Any, Tuple, Optional
 
 from vmevalkit.runner.dataset import (
@@ -13,32 +13,21 @@ class Retriever:
     
     def __init__(
         self,
-        output_dir: str = "data/questions",
-        tasks: Optional[List[str]] = None,
-        random_seed: Optional[int] = 42,
-        pairs_per_domain: int = 50
+        dataset_config: List[Dict[str, Any]]
     ):
-        self.output_path = Path(output_dir)
-        self.pairs_per_domain = pairs_per_domain
-        self.random_seed = random_seed
-        self.tasks = tasks
-        self.hf_domains = [
-            d for d in self.tasks 
-            if TASK_REGISTRY.get(d, {}).get('hf', False) is True 
-            and not TASK_REGISTRY.get(d, {}).get('hf_meta', False)
-        ]
-        self.regular_domains = [
-            d for d in self.tasks
-            if TASK_REGISTRY.get(d, {}).get('hf', False) is not True
-        ]
+
+        self.output_path = dataset_config.get('output_path', 'data/questions')
+        self.task_name = dataset_config.get('task', None)
+        self.pairs_per_domain = dataset_config.get('pairs_per_domain', 5)
+        self.random_seed = dataset_config.get('random_seed', 42)
+        self.config = TASK_REGISTRY.get(self.task_name, {})
     
     def download_hf_domains(self) -> None:
         """
         Download HuggingFace domains to folder structure.
         """
-        if self.hf_domains:
-            for domain in self.hf_domains:
-                download_hf_domain_to_folders(domain, self.output_path)
+
+        download_hf_domain_to_folders(self.task_name, self.output_path)
     
     def create_regular_dataset(self) -> Tuple[Dict[str, Any], str]:
         """
@@ -47,11 +36,16 @@ class Retriever:
         Returns:
             Tuple of (dataset dictionary, path to questions directory)
         """
-        if self.regular_domains:
-            dataset, questions_dir = create_vmeval_dataset_direct(
-                pairs_per_domain=self.pairs_per_domain,
-                random_seed=self.random_seed,
-                selected_tasks=self.regular_domains
-            )
-        
+        dataset, questions_dir = create_vmeval_dataset_direct(
+            pairs_per_domain=self.pairs_per_domain,
+            random_seed=self.random_seed,
+            selected_tasks=[self.task_name]
+        )
         return dataset, questions_dir
+    
+    def retrieve_tasks(self) -> List[Dict[str, Any]]:
+        if self.config.get('hf', False):
+            self.download_hf_domains()
+        else:
+            self.create_regular_dataset()
+
