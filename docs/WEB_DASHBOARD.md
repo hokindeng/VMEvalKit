@@ -82,19 +82,6 @@ python app.py
 - **Metadata Loading**: JSON parsing from inference logs
 - **Statistics**: Model and domain aggregation functions
 
-#### Frontend Components
-
-**JavaScript (`static/js/main.js`)**
-```javascript
-// Core modules initialized on page load:
-initializeVideoPlayers()     // Click-to-play, keyboard support
-initializeFilters()          // Table filtering
-initializeSearch()           // Global search with debouncing
-initializeLazyLoading()      // Progressive video loading
-initializeAccessibility()    // ARIA, skip links, focus management
-initializeProgressBars()     // Animated completion indicators
-```
-
 ### Data Flow
 
 ```mermaid
@@ -511,14 +498,3 @@ To contribute to the web dashboard:
    - Clear description of changes
    - Screenshots for UI changes
    - Performance impact assessment
-
-## 📄 License
-
-Same as VMEvalKit main project (Apache 2.0).
-
----
-
-For more information, see:
-- [Main VMEvalKit Documentation](../README.md)
-- [Quick Start Guide](../web/README.md)
-- [API Documentation](EVALUATION.md)
