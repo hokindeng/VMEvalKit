@@ -91,6 +91,9 @@ TASK_REGISTRY = {
         'name': 'Shape Sorter',
         'description': '2D shape matching under a fixed top-down camera',
         'module': 'vmevalkit.tasks.shape_sorter_task',
+        'create_function': 'create_dataset',
+        'process_dataset': lambda dataset, num_samples: dataset['pairs']
+    },
     'object_rearr': {
         'name': 'Object Rearrangement',
         'description': 'Spatial reasoning and object manipulation with spatial relations',
@@ -125,6 +128,7 @@ TASK_REGISTRY = {
         'module': 'vmevalkit.tasks.edit_distance_task',
         'create_function': 'create_dataset',
         'process_dataset': lambda dataset, num_samples: dataset['pairs']
+    },
     'vpct': {
         'name': 'VPCT',
         'description': 'Visual Physics Comprehension Test - predict which bucket the ball will fall into',

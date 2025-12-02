@@ -216,19 +216,31 @@ class TetrisMap:
         return False
     
     def clear_lines(self) -> int:
+        # Find all full lines
         lines_to_clear = []
         for i in range(self.height):
             if all(self.grid[i][j] != 0 for j in range(self.width)):
                 lines_to_clear.append(i)
-        for line in reversed(lines_to_clear):
-            del self.grid[line]
-            self.grid.insert(0, [0 for _ in range(self.width)])
-        cleared = len(lines_to_clear)
-        if cleared > 0:
-            self.lines_cleared += cleared
-            self.score += cleared * cleared * 100 
         
-        return cleared
+        # Remove full lines and keep non-full lines
+        if lines_to_clear:
+            new_grid = []
+            for i in range(self.height):
+                if i not in lines_to_clear:
+                    new_grid.append(self.grid[i])
+            
+            # Add empty lines at the top
+            num_cleared = len(lines_to_clear)
+            for _ in range(num_cleared):
+                new_grid.insert(0, [0 for _ in range(self.width)])
+            
+            self.grid = new_grid
+            self.lines_cleared += num_cleared
+            self.score += num_cleared * num_cleared * 100
+            
+            return num_cleared
+        
+        return 0
     
     def hard_drop(self):
         if self.current_block is None:
@@ -560,7 +572,7 @@ def _smart_fill_bottom_rows(tetris_map: TetrisMap, num_rows: int, fill_ratio: fl
 class TetrisEasyTaskGenerator:
     def __init__(self):
         self.map_width = 5
-        self.num_rows = min(1, min(self.map_width // 3, self.map_width - 1))
+        self.num_rows = 2  # For 5x5 map, use 2 rows to ensure interesting line-clearing scenarios
         self.fill_ratio = 0.8
         self.tetris_map = TetrisMap(width=self.map_width, height=self.map_width)
         
@@ -639,6 +651,7 @@ class TetrisEasyTaskGenerator:
                 'initial_state_bottom3': task.initial_state_bottom3,
                 'final_state_bottom3': task.final_state_bottom3,
                 'map_size': task.map_size,
+                'difficulty': task.difficulty,
                 'created_at': task.created_at
             }
             task_dicts.append(task_dict)
@@ -649,6 +662,99 @@ class TetrisEasyTaskGenerator:
         }
         return dataset_dict
 
+
+class TetrisMediumTaskGenerator:
+    def __init__(self):
+        self.map_width = 10
+        self.num_rows = 3  # Fixed width of 3 for medium
+        self.fill_ratio = 0.8
+        self.tetris_map = TetrisMap(width=self.map_width, height=self.map_width)
+        
+    def generate_single_task(self, task_id: str, guarantee_clear: Optional[bool] = None) -> TetrisTaskPair:
+        """Generate a single medium task pair (10x10 map, 3-row initialization).
+
+        guarantee_clear: pass True/False/None to _smart_fill_bottom_rows. If None, the function
+        will run in random mode (as implemented in _smart_fill_bottom_rows).
+        """
+        _smart_fill_bottom_rows(
+            self.tetris_map,
+            self.num_rows,
+            self.fill_ratio,
+            guarantee_clear,  # allow True/False/None
+        )
+        bottom_rows_initial = []
+        temp_dir = tempfile.mkdtemp()
+        start_row = self.tetris_map.height - self.num_rows
+        for r in range(start_row, self.tetris_map.height):
+            bottom_rows_initial.append([cell for cell in self.tetris_map.grid[r]])
+        first_temp_path = os.path.join(temp_dir, f"{task_id}_first.png")
+        self.tetris_map.render_to_image(first_temp_path)
+        
+        lines_cleared = self.tetris_map.clear_lines()
+        bottom_rows_final = []
+        actual_rows = min(self.num_rows, self.tetris_map.height)
+        start_row_final = self.tetris_map.height - actual_rows
+        for r in range(start_row_final, self.tetris_map.height):
+            bottom_rows_final.append([cell for cell in self.tetris_map.grid[r]])
+        final_temp_path = os.path.join(temp_dir, f"{task_id}_final.png")
+        self.tetris_map.render_to_image(final_temp_path)
+        prompt = PROMPTS[0].format(difficulty="medium", n=self.map_width)
+        task_pair = TetrisTaskPair(
+            id=task_id,
+            task_category="Tetris",
+            prompt=prompt,
+            first_image_path=first_temp_path,
+            final_image_path=final_temp_path,
+            difficulty="medium",
+            initial_state_bottom3=bottom_rows_initial,
+            final_state_bottom3=bottom_rows_final,
+            map_size=[self.tetris_map.width, self.tetris_map.height],
+            created_at=datetime.now().isoformat()
+        )
+        return task_pair
+        
+        
+    def generate_dataset(self, num_samples: int = 10) -> Dict[str, Any]:
+        tasks = []
+        # Ensure that across generated samples we cover True, False and None at least once
+        options = [True, False, None]
+        if num_samples >= len(options):
+            # include each option once, then fill remaining with random choices
+            guaranteed_list = options.copy()
+            remaining = num_samples - len(options)
+            guaranteed_list += [random.choice(options) for _ in range(remaining)]
+        else:
+            # fewer samples than options: pick a subset without duplicates
+            guaranteed_list = random.sample(options, k=num_samples)
+
+        random.shuffle(guaranteed_list)
+
+        for sample_idx in range(num_samples):
+            task_id = f"tetris_medium_{sample_idx:04d}"  # Format as string like "tetris_medium_0001"
+            guarantee_choice = guaranteed_list[sample_idx]
+            task = self.generate_single_task(task_id, guarantee_clear=guarantee_choice)
+            tasks.append(task)
+        task_dicts = []
+        for task in tasks:
+            task_dict = {
+                'id': task.id,
+                'prompt': task.prompt,
+                'task_category': task.task_category,
+                'first_image_path': task.first_image_path,
+                'final_image_path': task.final_image_path,
+                'initial_state_bottom3': task.initial_state_bottom3,
+                'final_state_bottom3': task.final_state_bottom3,
+                'map_size': task.map_size,
+                'difficulty': task.difficulty,
+                'created_at': task.created_at
+            }
+            task_dicts.append(task_dict)
+        dataset_dict = {
+            'name': 'Tetris Medium Dataset',
+            'description': 'A dataset of medium Tetris tasks (10x10 map, 3-row initialization) generated by TetrisMediumTaskGenerator for video model reasoning evaluation.',
+            'pairs': task_dicts  # Changed from 'tasks' to 'pairs' to match other tasks
+        }
+        return dataset_dict
 
 #TODO: Implement hard task generator
 class TetrisHardTaskGenerator:
@@ -664,16 +770,15 @@ class TetrisTaskGenerator:
         self.difficulty = difficulty
         if difficulty == "easy":
             self.generator = TetrisEasyTaskGenerator()
+        elif difficulty == "medium":
+            self.generator = TetrisMediumTaskGenerator()
         elif difficulty == "hard":
             self.generator = TetrisHardTaskGenerator()
         else:
-            raise ValueError("Invalid difficulty level. Choose 'easy' or 'hard'.")
+            raise ValueError("Invalid difficulty level. Choose 'easy', 'medium', or 'hard'.")
         
     def generate_dataset(self, num_samples: int = 10) -> Dict[str, Any]:
-        if self.difficulty == "easy":
-            return self.generator.generate_dataset(num_samples)
-        elif self.difficulty == "hard":
-            return self.generator.generate_dataset(num_samples)
+        return self.generator.generate_dataset(num_samples)
 
 def create_dataset(num_samples: int = 10) -> Dict[str, Any]:
     generator = TetrisTaskGenerator(difficulty="easy")
