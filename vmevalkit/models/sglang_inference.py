@@ -16,11 +16,9 @@ Reference:
 import os
 import sys
 import subprocess
-import tempfile
 from pathlib import Path
 from typing import Dict, Any, Optional, Union
 from .base import ModelWrapper
-import json
 import time
 import logging
 
@@ -31,7 +29,16 @@ SGLANG_MODEL_MAP = {
     "hunyuan-video-i2v": "Tencent/HunyuanVideo-I2V",
     "wan-2.1": "Wan-AI/Wan2.1-FLF2V-14B-720P-diffusers",
     "wan-2.2": "Wan-AI/Wan2.2-I2V-A14B-Diffusers",
-    "fastwan": "Wan-AI/FastWan",  # Placeholder, update with actual model path
+    # FastWan models (by Hao AI Lab @ UCSD)
+    # See: https://hao-ai-lab.github.io/blogs/fastvideo_post_training/
+    # Available models:
+    # - FastVideo/FastWan2.1-T2V-1.3B-Diffusers (480P, 1.3B params)
+    # - FastVideo/FastWan2.1-T2V-14B-Diffusers (720P, 14B params, preview)
+    # - FastVideo/FastWan2.2-TI2V-5B-FullAttn-Diffusers (720P, 5B params)
+    "fastwan": "FastVideo/FastWan2.1-T2V-1.3B-Diffusers",  # Default: 1.3B 480P model (alias for fastwan-1.3b)
+    "fastwan-1.3b": "FastVideo/FastWan2.1-T2V-1.3B-Diffusers",  # 480P, 1.3B params (same as fastwan, explicit version)
+    "fastwan-14b": "FastVideo/FastWan2.1-T2V-14B-Diffusers",  # 720P, 14B params (preview)
+    "fastwan-2.2-5b": "FastVideo/FastWan2.2-TI2V-5B-FullAttn-Diffusers",  # 720P, 5B params
 }
 
 
@@ -69,6 +76,9 @@ class SGLangService:
         
         # Map model_id to SGLang model path
         self.sglang_model = SGLANG_MODEL_MAP.get(model_id, model_id)
+        
+        # FastWan models are now using correct paths from FastVideo organization
+        # No warning needed as paths are verified from official source
         
         # Check if SGLang is available
         self._check_sglang_availability()
@@ -203,14 +213,13 @@ class SGLangService:
                     logger.info(f"Attempting SGLang CLI inference with model: {self.sglang_model}")
                     
                     # SGLang CLI uses --model-path, --output-path (directory), --prompt
-                    # For image-to-video, we may need to handle image input differently
-                    # Note: SGLang CLI may not directly support image-to-video via CLI
-                    # We'll try the basic video generation first
+                    # For image-to-video, pass image via --image-path or --image
                     output_dir = str(self.output_dir)
                     cmd = [
                         "sglang", "generate",
                         "--model-path", self.sglang_model,
                         "--prompt", text_prompt,
+                        "--image-path", str(image_path),  # Add image path for I2V
                         "--output-path", output_dir,
                         "--height", str(height),
                         "--width", str(width),
@@ -239,6 +248,7 @@ class SGLangService:
                     
                     # SGLang saves files with generated names, we need to find the output
                     # Check if any new video files were created in output_dir
+                    found_output_path = None
                     output_dir_path = Path(output_dir)
                     if output_dir_path.exists():
                         # Find the most recently created video file
@@ -248,12 +258,15 @@ class SGLangService:
                             latest_video = max(video_files, key=lambda p: p.stat().st_mtime)
                             # If it was created after we started, it's likely our output
                             if latest_video.stat().st_mtime > start_time:
-                                output_path = latest_video
+                                found_output_path = latest_video
                     
-                    if result.returncode == 0 and output_path.exists():
+                    # Use found path or fall back to expected path
+                    final_output_path = found_output_path if found_output_path else output_path
+                    
+                    if result.returncode == 0 and final_output_path and final_output_path.exists():
                         return {
                             "success": True,
-                            "video_path": str(output_path),
+                            "video_path": str(final_output_path),
                             "error": None,
                             "duration_seconds": time.time() - start_time,
                             "generation_id": f"sglang_{timestamp}",
@@ -311,10 +324,10 @@ class SGLangService:
                 )
                 
                 # Call SGLang Python API
-                # Note: For image-to-video, we may need to pass image differently
-                # The generate() method accepts prompt and various parameters
+                # For image-to-video, pass image_path as image or image_path parameter
                 generate_kwargs = {
                     "prompt": text_prompt,
+                    "image_path": str(image_path),  # Add image path for I2V
                     "output_path": str(self.output_dir),
                     "save_output": True,
                     "height": height,
@@ -325,27 +338,38 @@ class SGLangService:
                 if seed is not None:
                     generate_kwargs["seed"] = seed
                 
-                # Add any additional kwargs
+                # Add any additional kwargs (may override above)
                 generate_kwargs.update(kwargs)
                 
-                # Note: For image-to-video, we may need to handle image_path differently
-                # SGLang's API may require image to be passed as part of prompt or via different parameter
-                # This is a placeholder - actual implementation may vary
-                video_result = generator.generate(**generate_kwargs)
+                # Try generating with image_path, fallback to image if needed
+                try:
+                    video_result = generator.generate(**generate_kwargs)
+                except TypeError as e:
+                    # If image_path doesn't work, try with 'image' parameter instead
+                    if "image_path" in str(e):
+                        generate_kwargs.pop("image_path", None)
+                        generate_kwargs["image"] = str(image_path)
+                        video_result = generator.generate(**generate_kwargs)
+                    else:
+                        raise
                 
                 # Find the generated video file
+                found_output_path = None
                 output_dir_path = Path(self.output_dir)
                 if output_dir_path.exists():
                     video_files = list(output_dir_path.glob("*.mp4")) + list(output_dir_path.glob("*.avi"))
                     if video_files:
                         latest_video = max(video_files, key=lambda p: p.stat().st_mtime)
                         if latest_video.stat().st_mtime > start_time:
-                            output_path = latest_video
+                            found_output_path = latest_video
                 
-                if output_path.exists():
+                # Use found path or fall back to expected path
+                final_output_path = found_output_path if found_output_path else output_path
+                
+                if final_output_path and final_output_path.exists():
                     return {
                         "success": True,
-                        "video_path": str(output_path),
+                        "video_path": str(final_output_path),
                         "error": None,
                         "duration_seconds": time.time() - start_time,
                         "generation_id": f"sglang_{timestamp}",
