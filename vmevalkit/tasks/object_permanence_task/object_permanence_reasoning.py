@@ -775,8 +775,12 @@ def create_dataset(num_samples: int = 50,
                 if (i + 1) % 10 == 0:
                     print(f"  Generated {i + 1}/{count} {difficulty} tasks...")
             except Exception as e:
-                print(f"❌ Error generating task {task_id}: {e}")
-                continue
+                # Raise exception to ensure user knows about the problem
+                # This prevents silent failures that could be missed in large outputs
+                raise RuntimeError(
+                    f"Failed to generate task {task_id}. This indicates a problem with the generation logic. "
+                    f"Original error: {e}"
+                ) from e
     
     # Convert to dictionary format
     pairs_dict = []
