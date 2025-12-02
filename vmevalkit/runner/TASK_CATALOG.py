@@ -156,24 +156,10 @@ DOMAIN_REGISTRY = {
     # ========================================
     # TIN'S TASKS - From simple_task_video_reasoning
     # ========================================
-    'counting_circles': {
+    'counting_objects': {
         'name': 'Counting Circles',
-        'description': 'Visual counting of circles in Olympic-like arrangements (Tin\'s task)',
-        'module': 'vmevalkit.tasks.counting_circles_task',
-        'create_function': 'create_dataset',
-        'process_dataset': lambda dataset, num_samples: dataset['pairs']
-    },
-    'counting_pentagons': {
-        'name': 'Counting Pentagons',
-        'description': 'Visual counting of pentagons in arranged patterns (Tin\'s task)',
-        'module': 'vmevalkit.tasks.counting_pentagons_task',
-        'create_function': 'create_dataset',
-        'process_dataset': lambda dataset, num_samples: dataset['pairs']
-    },
-    'counting_squares': {
-        'name': 'Counting Nested Squares',
-        'description': 'Count all squares including nested ones (Tin\'s task)',
-        'module': 'vmevalkit.tasks.counting_squares_task',
+        'description': 'Visual counting of Objects (Tin\'s task)',
+        'module': 'vmevalkit.tasks.counting_objects_task',
         'create_function': 'create_dataset',
         'process_dataset': lambda dataset, num_samples: dataset['pairs']
     },
