@@ -60,7 +60,7 @@ class ObjectGenerator:
     """Generate objects with colors, shapes, and positions."""
     
     COLORS = ["red", "green", "blue", "yellow", "orange", "purple"]
-    SHAPES = ["cube", "sphere", "pyramid", "cone"]
+    SHAPES = ["square", "circle", "triangle", "trapezoid"]  # 2D shapes only
     
     def __init__(self, canvas_size: Tuple[int, int] = (256, 256), 
                  min_size: int = 20, max_size: int = 40,
@@ -158,14 +158,14 @@ class ObjectGenerator:
                     shape = self.rng.choice(self.SHAPES)
                     
                     # Calculate area (approximate)
-                    if shape == "cube":
+                    if shape == "square":
                         area = size * size
-                    elif shape == "sphere":
+                    elif shape == "circle":
                         area = int(np.pi * (size // 2) ** 2)
-                    elif shape == "pyramid":
+                    elif shape == "triangle":
                         area = int(size * size * 0.433)  # Equilateral triangle
-                    else:  # cone
-                        area = int(np.pi * (size // 2) ** 2)
+                    else:  # trapezoid
+                        area = int(size * size * 0.75)  # Approximate trapezoid area
                     
                     obj = {
                         "id": i,
@@ -207,14 +207,14 @@ class ObjectGenerator:
                 color = self.rng.choice(self.COLORS)
                 shape = self.rng.choice(self.SHAPES)
                 
-                if shape == "cube":
+                if shape == "square":
                     area = size * size
-                elif shape == "sphere":
+                elif shape == "circle":
                     area = int(np.pi * (size // 2) ** 2)
-                elif shape == "pyramid":
+                elif shape == "triangle":
                     area = int(size * size * 0.433)
-                else:
-                    area = int(np.pi * (size // 2) ** 2)
+                else:  # trapezoid
+                    area = int(size * size * 0.75)  # Approximate trapezoid area
                 
                 obj = {
                     "id": i,
@@ -348,25 +348,25 @@ class SceneRenderer:
         plt.close(fig)
     
     def _draw_object(self, ax, x: float, y: float, size: int, shape: str, color: str):
-        """Draw a single object."""
-        if shape == "cube":
-            # Draw square
+        """Draw a single 2D object."""
+        if shape == "square":
+            # Draw square (2D flat shape)
             rect = Rectangle((x - size//2, y - size//2), size, size,
                            facecolor=color, edgecolor="black", linewidth=2)
             ax.add_patch(rect)
-        elif shape == "sphere":
-            # Draw circle
+        elif shape == "circle":
+            # Draw circle (2D flat shape, not sphere)
             circle = Circle((x, y), size//2, facecolor=color, 
                           edgecolor="black", linewidth=2)
             ax.add_patch(circle)
-        elif shape == "pyramid":
-            # Draw triangle (equilateral)
+        elif shape == "triangle":
+            # Draw triangle (2D flat shape, not pyramid)
             triangle = RegularPolygon((x, y), 3, radius=size//2,
                                     orientation=np.pi/6,
                                     facecolor=color, edgecolor="black", linewidth=2)
             ax.add_patch(triangle)
-        elif shape == "cone":
-            # Draw trapezoid (cone-like)
+        elif shape == "trapezoid":
+            # Draw trapezoid (2D flat shape, not cone)
             half_size = size // 2
             points = [
                 (x - half_size, y - half_size),
@@ -526,19 +526,19 @@ class ObjectPermanenceGenerator:
         objects_count_description = number_to_word(num_objects)
         
         if num_objects == 1:
-            # Single object: "a red cube"
+            # Single object: "a red square"
             object_word = "object"
             objects_description = object_descriptions[0]
             objects_reference = "object"
             objects_pronoun = "it"
         elif num_objects == 2:
-            # Two objects: "a red cube and a blue sphere"
+            # Two objects: "a red square and a blue circle"
             object_word = "objects"
             objects_description = f"{object_descriptions[0]} and {object_descriptions[1]}"
             objects_reference = "objects"
             objects_pronoun = "them"
         else:
-            # Multiple objects (3+): "a red cube, a blue sphere, and a green pyramid"
+            # Multiple objects (3+): "a red square, a blue circle, and a green triangle"
             object_word = "objects"
             objects_description = ", ".join(object_descriptions[:-1]) + f", and {object_descriptions[-1]}"
             objects_reference = "objects"
