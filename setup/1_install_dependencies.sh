@@ -1,99 +1,116 @@
 #!/bin/bash
 ##############################################################################
-# Step 1: Install All Dependencies and Create Virtual Environments
+# Step 1: Install All Dependencies
 #
-# Creates 4 isolated venvs in envs/ directory:
-# - venv_main: torch 2.5.1 (LTX, SVD, WAN, Morphic)
-# - venv_hunyuan: torch 2.0.0 (HunyuanVideo)
-# - venv_dynamicrafter: torch 2.0.0 (DynamiCrafter)
-# - venv_videocrafter: torch 2.0.0 (VideoCrafter)
+# Creates 4 isolated virtual environments in envs/:
+#   venv_main         - torch 2.5.1 (LTX, SVD, WAN, Morphic)
+#   venv_hunyuan      - torch 2.0.0 (HunyuanVideo)
+#   venv_dynamicrafter - torch 2.0.0 (DynamiCrafter)
+#   venv_videocrafter  - torch 2.0.0 (VideoCrafter)
 ##############################################################################
 
-set -e
-cd /home/hokindeng/VMEvalKit
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/lib/common.sh"
 
-echo "════════════════════════════════════════════════════════════════"
-echo "Step 1: Installing Dependencies"
-echo "════════════════════════════════════════════════════════════════"
-echo ""
+print_header "Step 1: Installing Dependencies"
 
-mkdir -p envs
+ensure_dir "${ENVS_DIR}"
 
-# 1. Main venv (torch 2.5.1) - LTX, SVD, WAN, Morphic
-echo "🔧 [1/4] Creating envs/venv_main..."
-python3 -m venv envs/venv_main
-source envs/venv_main/bin/activate
+# ============================================================================
+# VENV 1: Main (torch 2.5.1) - LTX, SVD, WAN, Morphic
+# ============================================================================
+print_step "[1/4] Creating venv_main (torch 2.5.1)..."
 
-echo "   Installing PyTorch 2.5.1..."
+python3 -m venv "${ENVS_DIR}/venv_main"
+activate_venv "venv_main"
+
 pip install -q --upgrade pip setuptools wheel
+
+# Core PyTorch stack
 pip install -q torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1
 
-echo "   Installing diffusers ecosystem..."
+# Diffusers ecosystem
 pip install -q diffusers transformers accelerate sentencepiece
 pip install -q xformers==0.0.28.post3 einops decord av omegaconf
 
-echo "   Installing utilities..."
+# Vision utilities
 pip install -q opencv-python opencv-contrib-python
+
+# Core utilities
 pip install -q numpy Pillow pandas matplotlib tqdm
 pip install -q pydantic pydantic-settings python-dotenv
 pip install -q requests httpx aiohttp tenacity boto3
-pip install -q imageio imageio-ffmpeg moviepy cairosvg
-pip install -q ftfy  # For WAN text processing
+
+# Media processing
+pip install -q imageio imageio-ffmpeg moviepy cairosvg ftfy
 
 deactivate
-echo "   ✅ venv_main ready (torch 2.5.1)"
-echo ""
+print_success "venv_main ready (LTX, SVD, WAN, Morphic - 10 models)"
 
-# 2. Hunyuan venv (torch 2.0.0)
-echo "🔧 [2/4] Creating envs/venv_hunyuan..."
-python3 -m venv envs/venv_hunyuan
-source envs/venv_hunyuan/bin/activate
+# ============================================================================
+# VENV 2: Hunyuan (torch 2.0.0)
+# ============================================================================
+print_step "[2/4] Creating venv_hunyuan (torch 2.0.0)..."
+
+python3 -m venv "${ENVS_DIR}/venv_hunyuan"
+activate_venv "venv_hunyuan"
 
 pip install -q --upgrade pip setuptools wheel
 pip install -q torch==2.0.0 torchvision==0.15.1 --index-url https://download.pytorch.org/whl/cu118
+
 pip install -q diffusers==0.31.0 transformers==4.39.3 accelerate==1.1.1
 pip install -q opencv-python einops imageio imageio-ffmpeg
 pip install -q safetensors peft loguru
 pip install -q Pillow numpy pandas tqdm pydantic python-dotenv requests
 
 deactivate
-echo "   ✅ venv_hunyuan ready (torch 2.0.0)"
-echo ""
+print_success "venv_hunyuan ready (HunyuanVideo - 1 model)"
 
-# 3. DynamiCrafter venv (torch 2.0.0)
-echo "🔧 [3/4] Creating envs/venv_dynamicrafter..."
-python3 -m venv envs/venv_dynamicrafter
-source envs/venv_dynamicrafter/bin/activate
+# ============================================================================
+# VENV 3: DynamiCrafter (torch 2.0.0)
+# ============================================================================
+print_step "[3/4] Creating venv_dynamicrafter (torch 2.0.0)..."
+
+python3 -m venv "${ENVS_DIR}/venv_dynamicrafter"
+activate_venv "venv_dynamicrafter"
 
 pip install -q --upgrade pip setuptools wheel
 pip install -q torch==2.0.0 torchvision==0.15.1 --index-url https://download.pytorch.org/whl/cu118
+
 pip install -q decord einops imageio omegaconf opencv-python
 pip install -q Pillow pytorch_lightning PyYAML tqdm transformers
 pip install -q moviepy av xformers==0.0.18 gradio timm
 pip install -q pandas pydantic python-dotenv requests
 
 deactivate
-echo "   ✅ venv_dynamicrafter ready (torch 2.0.0)"
-echo ""
+print_success "venv_dynamicrafter ready (DynamiCrafter - 3 models)"
 
-# 4. VideoCrafter venv (torch 2.0.0)
-echo "🔧 [4/4] Creating envs/venv_videocrafter..."
-python3 -m venv envs/venv_videocrafter
-source envs/venv_videocrafter/bin/activate
+# ============================================================================
+# VENV 4: VideoCrafter (torch 2.0.0)
+# ============================================================================
+print_step "[4/4] Creating venv_videocrafter (torch 2.0.0)..."
+
+python3 -m venv "${ENVS_DIR}/venv_videocrafter"
+activate_venv "venv_videocrafter"
 
 pip install -q --upgrade pip setuptools wheel
 pip install -q torch==2.0.0 torchvision==0.15.1 --index-url https://download.pytorch.org/whl/cu118
+
 pip install -q omegaconf pytorch-lightning einops transformers
 pip install -q opencv-python imageio av moviepy
 pip install -q Pillow numpy pandas tqdm pydantic python-dotenv requests
 
 deactivate
-echo "   ✅ venv_videocrafter ready (torch 2.0.0)"
-echo ""
+print_success "venv_videocrafter ready (VideoCrafter - 1 model)"
 
-echo "════════════════════════════════════════════════════════════════"
-echo "✅ All 4 virtual environments created!"
-echo "════════════════════════════════════════════════════════════════"
-echo ""
-echo "Next: Run ./setup/2_download_checkpoints.sh"
+# ============================================================================
+# Summary
+# ============================================================================
+print_header "✅ All 4 Virtual Environments Created"
 
+echo "   venv_main          → LTX, SVD, WAN, Morphic (10 models)"
+echo "   venv_hunyuan       → HunyuanVideo (1 model)"
+echo "   venv_dynamicrafter → DynamiCrafter 256/512/1024 (3 models)"
+echo "   venv_videocrafter  → VideoCrafter2 (1 model)"
+echo ""
+echo "Next: ./setup/2_download_checkpoints.sh"
