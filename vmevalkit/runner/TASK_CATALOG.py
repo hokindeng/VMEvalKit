@@ -131,6 +131,13 @@ DOMAIN_REGISTRY = {
         'module': 'vmevalkit.tasks.dice_2d_task',
         'create_function': 'create_dataset',
         'process_dataset': lambda dataset, num_samples: dataset['pairs']
+    },
+    'mirror_clock': {
+        'name': 'Mirror Clock',
+        'description': 'Spatial reasoning and mirror transformation using analog clock reflections',
+        'module': 'vmevalkit.tasks.mirror_clock_task',
+        'create_function': 'create_dataset',
+        'process_dataset': lambda dataset, num_samples: dataset['pairs']
     }
 }
 
