@@ -188,25 +188,83 @@ class SceneRenderer:
         num_lights = panel_config["num_lights"]
         lights = panel_config["lights"]
         
-        # Calculate layout
+        # Calculate layout with support for multi-row arrangement
+        if num_lights == 2:
+            # Single row layout
+            num_rows = 1
+            lights_per_row = 2
+        elif num_lights == 3:
+            # Single row layout
+            num_rows = 1
+            lights_per_row = 3
+        elif num_lights == 4:
+            # 2 rows x 2 columns
+            num_rows = 2
+            lights_per_row = 2
+        elif num_lights == 6:
+            # 2 rows x 3 columns
+            num_rows = 2
+            lights_per_row = 3
+        elif num_lights == 8:
+            # 2 rows x 4 columns
+            num_rows = 2
+            lights_per_row = 4
+        elif num_lights == 9:
+            # 3 rows x 3 columns
+            num_rows = 3
+            lights_per_row = 3
+        else:
+            # Default: try to fit in 2 rows
+            num_rows = 2
+            lights_per_row = (num_lights + 1) // 2
+        
         panel_width = self.canvas_size[0] * 0.9
         panel_height = self.canvas_size[1] * 0.8
         panel_x = (self.canvas_size[0] - panel_width) / 2
         panel_y = (self.canvas_size[1] - panel_height) / 2
         
-        # Spacing between units
-        unit_width = panel_width / num_lights
-        unit_spacing = unit_width * 0.1
+        # Calculate unit dimensions based on layout
+        unit_width = panel_width / lights_per_row
+        
+        # For 4 or 6 lights (2 rows), increase row spacing between groups
+        if (num_lights == 4 or num_lights == 6) and num_rows == 2:
+            # Increase vertical spacing between rows
+            row_spacing = panel_height * 0.15  # Extra space between rows
+            available_height = panel_height - row_spacing
+            unit_height = available_height / num_rows
+            unit_spacing = min(unit_width * 0.1, unit_height * 0.05)  # Less spacing within unit
+        else:
+            unit_height = panel_height / num_rows
+            unit_spacing = min(unit_width * 0.1, unit_height * 0.1)
         
         # Draw each control unit
         for i, light in enumerate(lights):
-            unit_x = panel_x + i * unit_width + unit_spacing / 2
+            # Calculate row and column position
+            row = i // lights_per_row
+            col = i % lights_per_row
+            
+            # Calculate unit position based on row/column
+            unit_x = panel_x + col * unit_width + unit_spacing / 2
             unit_width_actual = unit_width - unit_spacing
+            
+            # For 4 or 6 lights (2 rows), add extra spacing between rows
+            if (num_lights == 4 or num_lights == 6) and num_rows == 2:
+                row_spacing = panel_height * 0.15
+                unit_y = panel_y + row * (unit_height + row_spacing)
+                unit_height_actual = unit_height - unit_spacing
+            else:
+                unit_y = panel_y + row * unit_height
+                unit_height_actual = unit_height - unit_spacing
             
             # Light position (top) - 灯在上方
             # 由于使用了invert_yaxis，较小的y值在上方
-            light_y = panel_y + panel_height * 0.2  # 灯在上方（反转y轴中，小值在上）
-            light_size = min(unit_width_actual * 0.4, panel_height * 0.15)
+            # Adjust position relative to unit, not global panel
+            # For 4 or 6 lights (2 rows), reduce distance between light and button
+            if num_lights == 4 or num_lights == 6:
+                light_y = unit_y + unit_height_actual * 0.25  # 灯在上方，距离按钮更近
+            else:
+                light_y = unit_y + unit_height_actual * 0.2  # 灯在上方（反转y轴中，小值在上）
+            light_size = min(unit_width_actual * 0.4, unit_height_actual * 0.15)
             light_x = unit_x + unit_width_actual / 2
             
             # Get current color based on lever position
@@ -226,10 +284,22 @@ class SceneRenderer:
             
             # Control slot position (below light) - 按钮在下方
             # 由于使用了invert_yaxis，较大的y值在下方
-            # 增加灯和按钮之间的间距
-            slot_y = panel_y + panel_height * 0.7  # 按钮在下方（反转y轴中，大值在下）
-            slot_height = panel_height * 0.2
-            slot_width = unit_width_actual * 0.7
+            # Adjust position relative to unit, not global panel
+            # For 4 or 6 lights (2 rows), reduce distance between light and button
+            if num_lights == 4 or num_lights == 6:
+                slot_y = unit_y + unit_height_actual * 0.65  # 按钮在下方，距离灯更近
+            else:
+                slot_y = unit_y + unit_height_actual * 0.7  # 按钮在下方（反转y轴中，大值在下）
+            
+            # 固定按钮尺寸，使用2个灯时的尺寸作为标准
+            # 2个灯时的参考尺寸：unit_width_actual * 0.7, unit_height_actual * 0.2
+            # 使用固定的像素值或相对于画布的固定比例
+            reference_slot_width = panel_width / 2 * 0.7  # 2个灯时每个unit的宽度
+            reference_slot_height = panel_height * 0.8 / 1 * 0.2  # 2个灯时单行的unit高度
+            
+            # 使用固定尺寸，但确保不超过unit边界
+            slot_width = min(unit_width_actual * 0.7, reference_slot_width)
+            slot_height = min(unit_height_actual * 0.2, reference_slot_height)
             slot_x = unit_x + (unit_width_actual - slot_width) / 2
             
             # Draw black control slot
@@ -239,19 +309,21 @@ class SceneRenderer:
             ax.add_patch(slot)
             
             # Draw position markers (left, middle, right)
-            marker_size = 3
+            # 固定标记尺寸，使用2个灯时的尺寸
+            marker_size = 3  # 固定尺寸，与2个灯相同
             left_marker_x = slot_x + slot_width * 0.2
             middle_marker_x = slot_x + slot_width * 0.5
             right_marker_x = slot_x + slot_width * 0.8
             marker_y = slot_y + slot_height / 2
             
-            # Draw markers as small circles
+            # Draw markers as small circles - 与2个灯完全相同的样式
             for mx in [left_marker_x, middle_marker_x, right_marker_x]:
                 marker = Circle((mx, marker_y), marker_size,
                               facecolor="white", edgecolor="none", alpha=0.5)
                 ax.add_patch(marker)
             
             # Draw lever based on position
+            # 固定拉杆尺寸，使用2个灯时的比例
             lever_width = slot_width * 0.15
             lever_height = slot_height * 0.6
             lever_y = slot_y + (slot_height - lever_height) / 2
@@ -263,18 +335,12 @@ class SceneRenderer:
             else:  # right
                 lever_x = slot_x + slot_width * 0.9 - lever_width
             
-            # Draw lever (rectangle) - styled to match light (same visual style)
-            # Use a rounded rectangle or button-like appearance
+            # Draw lever (rectangle) - 简化为纯灰色块
+            # 移除所有装饰效果，只保留简单的灰色矩形
             lever = Rectangle((lever_x, lever_y), lever_width, lever_height,
-                            facecolor="#808080",  # Gray lever
-                            edgecolor="black", linewidth=2)
+                            facecolor="#808080",  # 纯灰色
+                            edgecolor="black", linewidth=1)  # 细边框
             ax.add_patch(lever)
-            
-            # Add a subtle highlight to make button more visible
-            highlight = Rectangle((lever_x + 1, lever_y + 1), 
-                               lever_width - 2, lever_height * 0.3,
-                               facecolor="#CCCCCC", edgecolor="none", alpha=0.5)
-            ax.add_patch(highlight)
         
         # Save figure
         plt.tight_layout(pad=0)
@@ -314,7 +380,8 @@ class ControlPanelTaskGenerator:
         
         Args:
             task_id: Unique identifier for the task
-            difficulty: "easy" (2 lights), "medium" (2 lights), "hard" (3 lights)
+            difficulty: "2_lights", "3_lights", "4_lights", "6_lights", etc.
+                     or legacy: "easy", "medium", "hard", "very_hard"
             seed: Random seed for reproducibility
             
         Returns:
@@ -325,15 +392,24 @@ class ControlPanelTaskGenerator:
             np.random.seed(seed)
         
         # Determine number of lights based on difficulty
-        # Minimum 2 lights required
-        if difficulty == "easy":
-            num_lights = 2  # Changed from 1 to 2
-        elif difficulty == "medium":
+        # Difficulty can be "2_lights", "3_lights", "4_lights", "6_lights", etc.
+        # Or legacy names: "easy" (2), "medium" (3), "hard" (4), "very_hard" (6)
+        if difficulty == "easy" or difficulty == "2_lights":
             num_lights = 2
-        elif difficulty == "hard":
+        elif difficulty == "medium" or difficulty == "3_lights":
             num_lights = 3
+        elif difficulty == "hard" or difficulty == "4_lights":
+            num_lights = 4
+        elif difficulty == "very_hard" or difficulty == "6_lights":
+            num_lights = 6
+        elif difficulty.endswith("_lights"):
+            # Extract number from "N_lights" format
+            try:
+                num_lights = int(difficulty.split("_")[0])
+            except ValueError:
+                num_lights = 2
         else:
-            num_lights = 2  # Default to 2 instead of 1
+            num_lights = 2  # Default to 2
         
         # Generate panel configuration
         panel_config = self.panel_generator.generate_panel_config(
@@ -347,6 +423,9 @@ class ControlPanelTaskGenerator:
         # Create image paths
         first_image_path = Path(self.temp_dir) / f"{task_id}_first.png"
         final_image_path = Path(self.temp_dir) / f"{task_id}_final.png"
+        
+        # Use number of lights as difficulty name
+        difficulty_name = f"{num_lights}_lights"
         
         # Render first frame: initial lever positions
         self.renderer.render_panel(
@@ -376,7 +455,7 @@ class ControlPanelTaskGenerator:
             final_image_path=str(final_image_path),
             task_category="ControlPanel",
             control_panel_data=control_panel_data,
-            difficulty=difficulty,
+            difficulty=difficulty_name,  # Use number of lights as difficulty
             num_lights=num_lights,
             created_at=datetime.now().isoformat()
         )
@@ -464,9 +543,10 @@ def create_dataset(num_samples: int = 50,
     Args:
         num_samples: Total number of task pairs to generate
         difficulty_distribution: Optional dict like {
-            "easy": 0.33,   # 2 lights
-            "medium": 0.33,  # 2 lights
-            "hard": 0.34    # 3 lights
+            "2_lights": 0.25,
+            "3_lights": 0.25,
+            "4_lights": 0.25,
+            "6_lights": 0.25
         }
         
     Returns:
@@ -475,9 +555,10 @@ def create_dataset(num_samples: int = 50,
     if difficulty_distribution is None:
         # Default distribution - equal distribution
         difficulty_distribution = {
-            "easy": 1/3,   # 2 lights
-            "medium": 1/3, # 2 lights
-            "hard": 1/3   # 3 lights
+            "2_lights": 0.25,
+            "3_lights": 0.25,
+            "4_lights": 0.25,
+            "6_lights": 0.25
         }
     
     print(f"🎯 Creating Control Panel Animation Dataset")
@@ -488,19 +569,31 @@ def create_dataset(num_samples: int = 50,
     pairs = []
     
     # Calculate number of samples per difficulty
-    easy_count = int(num_samples * difficulty_distribution.get("easy", 1/3))
-    medium_count = int(num_samples * difficulty_distribution.get("medium", 1/3))
-    hard_count = num_samples - easy_count - medium_count
+    lights_2_count = int(num_samples * difficulty_distribution.get("2_lights", 0.25))
+    lights_3_count = int(num_samples * difficulty_distribution.get("3_lights", 0.25))
+    lights_4_count = int(num_samples * difficulty_distribution.get("4_lights", 0.25))
+    lights_6_count = num_samples - lights_2_count - lights_3_count - lights_4_count
     
-    print(f"   Easy (2 lights): {easy_count}")
-    print(f"   Medium (2 lights): {medium_count}")
-    print(f"   Hard (3 lights): {hard_count}")
+    print(f"   2 lights: {lights_2_count}")
+    print(f"   3 lights: {lights_3_count}")
+    print(f"   4 lights: {lights_4_count}")
+    print(f"   6 lights: {lights_6_count}")
     
     # Generate tasks
     task_idx = 0
-    for difficulty, count in [("easy", easy_count), ("medium", medium_count), ("hard", hard_count)]:
+    for difficulty, count in [("2_lights", lights_2_count), ("3_lights", lights_3_count), 
+                              ("4_lights", lights_4_count), ("6_lights", lights_6_count)]:
         for i in range(count):
-            task_id = f"control_panel_{difficulty}_{task_idx:04d}"
+            # Use number of lights in task ID (extract from difficulty name)
+            if difficulty.endswith("_lights"):
+                num_lights_str = difficulty.split("_")[0]
+            else:
+                # Legacy support: map old names to numbers
+                num_lights_str = "2" if difficulty == "easy" else \
+                                "3" if difficulty == "medium" else \
+                                "4" if difficulty == "hard" else \
+                                "6" if difficulty == "very_hard" else "2"
+            task_id = f"control_panel_{num_lights_str}lights_{task_idx:04d}"
             # Generate deterministic seed
             seed = task_idx * 1000 + hash(difficulty) % 1000
             
