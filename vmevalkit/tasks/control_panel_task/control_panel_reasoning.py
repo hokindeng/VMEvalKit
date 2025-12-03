@@ -203,8 +203,9 @@ class SceneRenderer:
             unit_x = panel_x + i * unit_width + unit_spacing / 2
             unit_width_actual = unit_width - unit_spacing
             
-            # Light position (top)
-            light_y = panel_y + panel_height * 0.6
+            # Light position (top) - 灯在上方
+            # 由于使用了invert_yaxis，较小的y值在上方
+            light_y = panel_y + panel_height * 0.2  # 灯在上方（反转y轴中，小值在上）
             light_size = min(unit_width_actual * 0.4, panel_height * 0.15)
             light_x = unit_x + unit_width_actual / 2
             
@@ -212,7 +213,7 @@ class SceneRenderer:
             lever_pos = lever_positions[i]
             current_color = SceneRenderer.POSITION_COLORS[lever_pos]
             
-            # Draw indicator light (circle)
+            # Draw indicator light (circle) - using same style as button
             light_circle = Circle((light_x, light_y), light_size / 2,
                                 facecolor=self.COLOR_MAP[current_color],
                                 edgecolor="black", linewidth=2)
@@ -223,9 +224,11 @@ class SceneRenderer:
                               facecolor="none", edgecolor="black", linewidth=1)
             ax.add_patch(light_ring)
             
-            # Control slot position (below light)
-            slot_y = panel_y + panel_height * 0.25
-            slot_height = panel_height * 0.25
+            # Control slot position (below light) - 按钮在下方
+            # 由于使用了invert_yaxis，较大的y值在下方
+            # 增加灯和按钮之间的间距
+            slot_y = panel_y + panel_height * 0.7  # 按钮在下方（反转y轴中，大值在下）
+            slot_height = panel_height * 0.2
             slot_width = unit_width_actual * 0.7
             slot_x = unit_x + (unit_width_actual - slot_width) / 2
             
@@ -260,11 +263,18 @@ class SceneRenderer:
             else:  # right
                 lever_x = slot_x + slot_width * 0.9 - lever_width
             
-            # Draw lever (rectangle)
+            # Draw lever (rectangle) - styled to match light (same visual style)
+            # Use a rounded rectangle or button-like appearance
             lever = Rectangle((lever_x, lever_y), lever_width, lever_height,
                             facecolor="#808080",  # Gray lever
                             edgecolor="black", linewidth=2)
             ax.add_patch(lever)
+            
+            # Add a subtle highlight to make button more visible
+            highlight = Rectangle((lever_x + 1, lever_y + 1), 
+                               lever_width - 2, lever_height * 0.3,
+                               facecolor="#CCCCCC", edgecolor="none", alpha=0.5)
+            ax.add_patch(highlight)
         
         # Save figure
         plt.tight_layout(pad=0)
@@ -304,7 +314,7 @@ class ControlPanelTaskGenerator:
         
         Args:
             task_id: Unique identifier for the task
-            difficulty: "easy" (1 light), "medium" (2 lights), "hard" (3 lights)
+            difficulty: "easy" (2 lights), "medium" (2 lights), "hard" (3 lights)
             seed: Random seed for reproducibility
             
         Returns:
@@ -315,14 +325,15 @@ class ControlPanelTaskGenerator:
             np.random.seed(seed)
         
         # Determine number of lights based on difficulty
+        # Minimum 2 lights required
         if difficulty == "easy":
-            num_lights = 1
+            num_lights = 2  # Changed from 1 to 2
         elif difficulty == "medium":
             num_lights = 2
         elif difficulty == "hard":
             num_lights = 3
         else:
-            num_lights = 1
+            num_lights = 2  # Default to 2 instead of 1
         
         # Generate panel configuration
         panel_config = self.panel_generator.generate_panel_config(
@@ -453,7 +464,7 @@ def create_dataset(num_samples: int = 50,
     Args:
         num_samples: Total number of task pairs to generate
         difficulty_distribution: Optional dict like {
-            "easy": 0.33,   # 1 light
+            "easy": 0.33,   # 2 lights
             "medium": 0.33,  # 2 lights
             "hard": 0.34    # 3 lights
         }
@@ -464,7 +475,7 @@ def create_dataset(num_samples: int = 50,
     if difficulty_distribution is None:
         # Default distribution - equal distribution
         difficulty_distribution = {
-            "easy": 1/3,   # 1 light
+            "easy": 1/3,   # 2 lights
             "medium": 1/3, # 2 lights
             "hard": 1/3   # 3 lights
         }
@@ -481,7 +492,7 @@ def create_dataset(num_samples: int = 50,
     medium_count = int(num_samples * difficulty_distribution.get("medium", 1/3))
     hard_count = num_samples - easy_count - medium_count
     
-    print(f"   Easy (1 light): {easy_count}")
+    print(f"   Easy (2 lights): {easy_count}")
     print(f"   Medium (2 lights): {medium_count}")
     print(f"   Hard (3 lights): {hard_count}")
     
