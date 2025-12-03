@@ -84,8 +84,13 @@ class ControlPanelGenerator:
         """
         Generate a control panel configuration.
         
+        Requirements:
+        - All cases: at least 2 different colors in initial state
+        - 2 lights: 2 or 3 colors (at least 2)
+        - 3, 4, 6 lights: 2 or 3 colors (at least 2), can have duplicate colors
+        
         Args:
-            num_lights: Number of lights (1, 2, or 3)
+            num_lights: Number of lights (2, 3, 4, or 6)
             seed: Random seed for reproducibility
             
         Returns:
@@ -101,24 +106,42 @@ class ControlPanelGenerator:
         initial_positions = []
         target_positions = []
         
+        # Determine how many colors to use (2 or 3)
+        num_colors = self.rng.choice([2, 3])
+        
+        # Select which colors to use
+        available_colors = list(self.POSITION_COLORS.values())  # ['red', 'green', 'blue']
+        selected_colors = self.rng.sample(available_colors, num_colors)
+        
+        # Generate initial positions ensuring at least 2 different colors
+        # Strategy: assign colors to lights, ensuring first two are different
+        initial_colors = []
         for i in range(num_lights):
-            # Random initial position
-            initial_pos = self.rng.choice(self.POSITIONS)
-            initial_positions.append(initial_pos)
-            
+            if i < 2:
+                # First two lights: use first two selected colors (ensures at least 2 colors)
+                color = selected_colors[i]
+            else:
+                # Remaining lights: randomly choose from selected colors (allows duplicates)
+                color = self.rng.choice(selected_colors)
+            initial_colors.append(color)
+        
+        # Convert colors to positions
+        for color in initial_colors:
+            # Find the position that corresponds to this color
+            for pos, pos_color in self.POSITION_COLORS.items():
+                if pos_color == color:
+                    initial_positions.append(pos)
+                    break
+        
+        # Generate target positions (will be overridden by generate_single_task based on target_color)
+        for i in range(num_lights):
+            initial_pos = initial_positions[i]
             # Target position: ensure at least one lever needs to move
-            # For the first light, if initial is not right, target is right
-            # Otherwise, choose a different position
-            if i == 0 and initial_pos != "right":
-                target_pos = "right"
-            elif initial_pos == "right":
-                # If already at right, move to middle or left
+            if initial_pos == "right":
                 target_pos = self.rng.choice(["left", "middle"])
             else:
-                # Move to a different position
                 other_positions = [p for p in self.POSITIONS if p != initial_pos]
                 target_pos = self.rng.choice(other_positions)
-            
             target_positions.append(target_pos)
             
             # Get colors based on positions
@@ -229,10 +252,14 @@ class SceneRenderer:
         # For 4 or 6 lights (2 rows), increase row spacing between groups
         if (num_lights == 4 or num_lights == 6) and num_rows == 2:
             # Increase vertical spacing between rows
-            row_spacing = panel_height * 0.15  # Extra space between rows
+            row_spacing = panel_height * 0.25  # Extra space between rows (increased from 0.15)
             available_height = panel_height - row_spacing
             unit_height = available_height / num_rows
             unit_spacing = min(unit_width * 0.1, unit_height * 0.05)  # Less spacing within unit
+        elif num_lights == 3:
+            # For 3 lights, increase spacing between columns
+            unit_height = panel_height / num_rows
+            unit_spacing = min(unit_width * 0.4, unit_height * 0.1)  # Further increased spacing between columns (from 0.3 to 0.4)
         else:
             unit_height = panel_height / num_rows
             unit_spacing = min(unit_width * 0.1, unit_height * 0.1)
@@ -249,21 +276,21 @@ class SceneRenderer:
             
             # For 4 or 6 lights (2 rows), add extra spacing between rows
             if (num_lights == 4 or num_lights == 6) and num_rows == 2:
-                row_spacing = panel_height * 0.15
+                row_spacing = panel_height * 0.25  # Increased spacing between rows (from 0.15)
                 unit_y = panel_y + row * (unit_height + row_spacing)
                 unit_height_actual = unit_height - unit_spacing
             else:
                 unit_y = panel_y + row * unit_height
                 unit_height_actual = unit_height - unit_spacing
             
-            # Light position (top) - 灯在上方
-            # 由于使用了invert_yaxis，较小的y值在上方
+            # Light position (top) - lights are at the top
+            # Since invert_yaxis is used, smaller y values are at the top
             # Adjust position relative to unit, not global panel
             # For 4 or 6 lights (2 rows), reduce distance between light and button
             if num_lights == 4 or num_lights == 6:
-                light_y = unit_y + unit_height_actual * 0.25  # 灯在上方，距离按钮更近
+                light_y = unit_y + unit_height_actual * 0.25  # Light at top, closer to button
             else:
-                light_y = unit_y + unit_height_actual * 0.2  # 灯在上方（反转y轴中，小值在上）
+                light_y = unit_y + unit_height_actual * 0.2  # Light at top (in inverted y-axis, small values are at top)
             light_size = min(unit_width_actual * 0.4, unit_height_actual * 0.15)
             light_x = unit_x + unit_width_actual / 2
             
@@ -282,24 +309,48 @@ class SceneRenderer:
                               facecolor="none", edgecolor="black", linewidth=1)
             ax.add_patch(light_ring)
             
-            # Control slot position (below light) - 按钮在下方
-            # 由于使用了invert_yaxis，较大的y值在下方
+            # Control slot position (below light) - button is at the bottom
+            # Since invert_yaxis is used, larger y values are at the bottom
             # Adjust position relative to unit, not global panel
             # For 4 or 6 lights (2 rows), reduce distance between light and button
             if num_lights == 4 or num_lights == 6:
-                slot_y = unit_y + unit_height_actual * 0.65  # 按钮在下方，距离灯更近
+                slot_y = unit_y + unit_height_actual * 0.65  # Button at bottom, closer to light
             else:
-                slot_y = unit_y + unit_height_actual * 0.7  # 按钮在下方（反转y轴中，大值在下）
+                slot_y = unit_y + unit_height_actual * 0.7  # Button at bottom (in inverted y-axis, large values are at bottom)
             
-            # 固定按钮尺寸，使用2个灯时的尺寸作为标准
-            # 2个灯时的参考尺寸：unit_width_actual * 0.7, unit_height_actual * 0.2
-            # 使用固定的像素值或相对于画布的固定比例
-            reference_slot_width = panel_width / 2 * 0.7  # 2个灯时每个unit的宽度
-            reference_slot_height = panel_height * 0.8 / 1 * 0.2  # 2个灯时单行的unit高度
+            # Control slot and button dimensions: maintain 2-lights proportions, but scale down when more lights
+            # Calculation for 2 lights:
+            #   unit_width = panel_width / 2 (two lights, each takes half)
+            #   unit_width_actual = unit_width - unit_spacing = (panel_width / 2) * 0.9
+            #   slot_width = unit_width_actual * 0.7 = (panel_width / 2) * 0.9 * 0.7
+            #   slot_height = unit_height_actual * 0.2 = panel_height * 0.8 * 0.2
             
-            # 使用固定尺寸，但确保不超过unit边界
-            slot_width = min(unit_width_actual * 0.7, reference_slot_width)
-            slot_height = min(unit_height_actual * 0.2, reference_slot_height)
+            # Calculate reference dimensions and proportions for 2 lights
+            reference_unit_width = (panel_width * 0.9) / 2  # Width of each unit for 2 lights
+            reference_unit_spacing = reference_unit_width * 0.1
+            reference_unit_width_actual = reference_unit_width - reference_unit_spacing
+            reference_slot_width = reference_unit_width_actual * 0.7  # Slot width for 2 lights
+            reference_slot_height = (panel_height * 0.8) * 0.2  # Slot height for 2 lights
+            
+            # Determine scale factor based on number of lights
+            # 2 lights: 1.0 (baseline)
+            # 3 lights: 0.9 (slightly smaller)
+            # 4 lights: 0.85 (smaller)
+            # 6 lights: 0.75 (smallest)
+            if num_lights == 2:
+                scale_factor = 1.0
+            elif num_lights == 3:
+                scale_factor = 0.9
+            elif num_lights == 4:
+                scale_factor = 0.85
+            elif num_lights == 6:
+                scale_factor = 0.75
+            else:
+                scale_factor = 1.0
+            
+            # Use scaled dimensions, but maintain the same proportions as 2 lights
+            slot_width = reference_slot_width * scale_factor
+            slot_height = reference_slot_height * scale_factor
             slot_x = unit_x + (unit_width_actual - slot_width) / 2
             
             # Draw black control slot
@@ -309,37 +360,46 @@ class SceneRenderer:
             ax.add_patch(slot)
             
             # Draw position markers (left, middle, right)
-            # 固定标记尺寸，使用2个灯时的尺寸
-            marker_size = 3  # 固定尺寸，与2个灯相同
-            left_marker_x = slot_x + slot_width * 0.2
+            # Use 3-lights small dot style (unified for all light counts)
+            marker_size = 2  # Small dots: smaller size
+            left_marker_x = slot_x + slot_width * 0.15
             middle_marker_x = slot_x + slot_width * 0.5
-            right_marker_x = slot_x + slot_width * 0.8
+            right_marker_x = slot_x + slot_width * 0.85
             marker_y = slot_y + slot_height / 2
             
-            # Draw markers as small circles - 与2个灯完全相同的样式
-            for mx in [left_marker_x, middle_marker_x, right_marker_x]:
+            # Draw markers as small circles - small dot markers
+            # Only show dots at non-button positions
+            marker_positions = []
+            if lever_pos != "left":
+                marker_positions.append(left_marker_x)
+            if lever_pos != "middle":
+                marker_positions.append(middle_marker_x)
+            if lever_pos != "right":
+                marker_positions.append(right_marker_x)
+            
+            for mx in marker_positions:
                 marker = Circle((mx, marker_y), marker_size,
-                              facecolor="white", edgecolor="none", alpha=0.5)
+                              facecolor="white", edgecolor="none", alpha=0.6)
                 ax.add_patch(marker)
             
             # Draw lever based on position
-            # 固定拉杆尺寸，使用2个灯时的比例
-            lever_width = slot_width * 0.15
-            lever_height = slot_height * 0.6
+            # Use 2-lights button dimensions and proportions (unified for all light counts)
+            # Button proportions for 2 lights: width is 25% of slot, height is 50% of slot
+            lever_width = slot_width * 0.25  # Same proportion as 2 lights
+            lever_height = slot_height * 0.5  # Same proportion as 2 lights
             lever_y = slot_y + (slot_height - lever_height) / 2
             
             if lever_pos == "left":
-                lever_x = slot_x + slot_width * 0.1
+                lever_x = slot_x + slot_width * 0.05  # Left position
             elif lever_pos == "middle":
-                lever_x = slot_x + slot_width * 0.5 - lever_width / 2
+                lever_x = slot_x + slot_width * 0.5 - lever_width / 2  # Middle position
             else:  # right
-                lever_x = slot_x + slot_width * 0.9 - lever_width
+                lever_x = slot_x + slot_width * 0.95 - lever_width  # Right position
             
-            # Draw lever (rectangle) - 简化为纯灰色块
-            # 移除所有装饰效果，只保留简单的灰色矩形
+            # Draw lever (rectangle) - long gray block
             lever = Rectangle((lever_x, lever_y), lever_width, lever_height,
-                            facecolor="#808080",  # 纯灰色
-                            edgecolor="black", linewidth=1)  # 细边框
+                            facecolor="#808080",  # Pure gray
+                            edgecolor="black", linewidth=1)  # Thin border
             ax.add_patch(lever)
         
         # Save figure
@@ -374,7 +434,8 @@ class ControlPanelTaskGenerator:
         self.renderer = SceneRenderer(canvas_size=canvas_size)
     
     def generate_single_task(self, task_id: str, difficulty: str = "easy", 
-                            seed: Optional[int] = None) -> ControlPanelTaskPair:
+                            seed: Optional[int] = None,
+                            target_color: str = "red") -> ControlPanelTaskPair:
         """
         Generate a single control panel task.
         
@@ -383,6 +444,7 @@ class ControlPanelTaskGenerator:
             difficulty: "2_lights", "3_lights", "4_lights", "6_lights", etc.
                      or legacy: "easy", "medium", "hard", "very_hard"
             seed: Random seed for reproducibility
+            target_color: Target color for all lights ("red", "green", or "blue")
             
         Returns:
             ControlPanelTaskPair instance
@@ -411,14 +473,28 @@ class ControlPanelTaskGenerator:
         else:
             num_lights = 2  # Default to 2
         
-        # Generate panel configuration
+        # Generate initial panel configuration (random initial state)
         panel_config = self.panel_generator.generate_panel_config(
             num_lights=num_lights, 
             seed=seed
         )
         
+        # Determine target position based on target color
+        # Reverse mapping: color -> position
+        color_to_position = {v: k for k, v in self.panel_generator.POSITION_COLORS.items()}
+        target_position = color_to_position[target_color]
+        
+        # Update target positions: all lights should be at target_position
+        target_positions = [target_position] * num_lights
+        
+        # Update panel_config with target positions
+        panel_config["target_positions"] = target_positions
+        for i, light in enumerate(panel_config["lights"]):
+            light["target_position"] = target_position
+            light["target_color"] = target_color
+        
         # Generate prompt
-        prompt = self._format_prompt(panel_config)
+        prompt = self._format_prompt(panel_config, target_color)
         
         # Create image paths
         first_image_path = Path(self.temp_dir) / f"{task_id}_first.png"
@@ -434,10 +510,10 @@ class ControlPanelTaskGenerator:
             first_image_path
         )
         
-        # Render final frame: target lever positions
+        # Render final frame: all levers at target position (all lights showing target color)
         self.renderer.render_panel(
             panel_config, 
-            panel_config["target_positions"], 
+            target_positions, 
             final_image_path
         )
         
@@ -445,6 +521,7 @@ class ControlPanelTaskGenerator:
         control_panel_data = {
             "panel_config": panel_config,
             "canvas_size": self.canvas_size,
+            "target_color": target_color,
         }
         
         # Create task pair
@@ -462,62 +539,44 @@ class ControlPanelTaskGenerator:
         
         return task_pair
     
-    def _format_prompt(self, panel_config: Dict[str, Any]) -> str:
+    def _format_prompt(self, panel_config: Dict[str, Any], target_color: str) -> str:
         """Format prompt template with panel configuration."""
         template = PROMPTS[DEFAULT_PROMPT_INDEX]
         lights = panel_config["lights"]
         num_lights = len(lights)
         
-        # Number to word conversion with proper singular/plural
-        num_words = ["one", "two", "three", "four", "five"]
-        if num_lights == 1:
-            num_lights_description = "one indicator light"
-        else:
-            num_lights_description = f"{num_words[num_lights - 1] if num_lights <= 5 else str(num_lights)} indicator lights"
+        # Number to word conversion
+        num_words = {
+            1: "one",
+            2: "two",
+            3: "three",
+            4: "four",
+            5: "five",
+            6: "six"
+        }
+        num_lights_desc = num_words.get(num_lights, str(num_lights))
         
-        # Build initial state description
-        initial_parts = []
-        for i, light in enumerate(lights):
-            pos = light["initial_position"]
-            color = light["initial_color"]
-            initial_parts.append(
-                f"Light {i+1}: lever at {pos} position, showing {color} light"
-            )
-        initial_state = "\n".join([f"({i+1}) {part}" for i, part in enumerate(initial_parts)])
+        # Check if there are duplicate colors in initial state
+        initial_colors = [light["initial_color"] for light in lights]
+        has_duplicates = len(initial_colors) != len(set(initial_colors))
         
-        # Build target state description
-        target_parts = []
-        lever_actions = []
-        for i, light in enumerate(lights):
-            initial_pos = light["initial_position"]
-            target_pos = light["target_position"]
-            target_color = light["target_color"]
-            
-            if initial_pos != target_pos:
-                target_parts.append(
-                    f"Light {i+1}: lever should be at {target_pos} position, showing {target_color} light"
-                )
-                lever_actions.append(
-                    f"Move the lever for Light {i+1} from {initial_pos} to {target_pos} position"
-                )
-            else:
-                target_parts.append(
-                    f"Light {i+1}: lever remains at {target_pos} position, showing {target_color} light"
-                )
+        # Build optional notes
+        num_lights_note = ""
+        if num_lights == 2:
+            num_lights_note = "\nNote: Each control panel has exactly three positions, corresponding to the three possible colors."
         
-        target_state = "\n".join([f"({i+1}) {part}" for i, part in enumerate(target_parts)])
+        duplicate_color_note = ""
         
-        # Build lever actions description
-        if lever_actions:
-            actions_text = "Perform the following lever movements:\n" + "\n".join([f"- {action}" for action in lever_actions])
-        else:
-            actions_text = "No lever movements are needed (all levers are already in target positions)."
+        inference_note = ""
+        if num_lights == 2:
+            inference_note = " Note that there are three positions corresponding to three colors."
         
         return template.format(
-            num_lights_description=num_lights_description,
-            initial_state_description=initial_state,
-            target_state_description=target_state,
-            lever_actions=actions_text
+            num_lights=num_lights_desc,
+            target_color=target_color,
+            num_lights_note=num_lights_note,
+            duplicate_color_note=duplicate_color_note,
+            inference_note=inference_note
         )
     
     def cleanup_temp_dir(self):
@@ -580,7 +639,10 @@ def create_dataset(num_samples: int = 50,
     print(f"   6 lights: {lights_6_count}")
     
     # Generate tasks
+    # For each scene, generate 3 independent tasks (one for each target color: red, green, blue)
     task_idx = 0
+    target_colors = ["red", "green", "blue"]
+    
     for difficulty, count in [("2_lights", lights_2_count), ("3_lights", lights_3_count), 
                               ("4_lights", lights_4_count), ("6_lights", lights_6_count)]:
         for i in range(count):
@@ -593,28 +655,33 @@ def create_dataset(num_samples: int = 50,
                                 "3" if difficulty == "medium" else \
                                 "4" if difficulty == "hard" else \
                                 "6" if difficulty == "very_hard" else "2"
-            task_id = f"control_panel_{num_lights_str}lights_{task_idx:04d}"
-            # Generate deterministic seed
-            seed = task_idx * 1000 + hash(difficulty) % 1000
             
-            try:
-                task_pair = generator.generate_single_task(
-                    task_id=task_id,
-                    difficulty=difficulty,
-                    seed=seed
-                )
-                pairs.append(task_pair)
-                task_idx += 1
+            # Generate 3 tasks for this scene (one per target color)
+            # Use the same seed for all 3 tasks to ensure same initial state
+            scene_seed = i * 1000 + hash(difficulty) % 1000
+            
+            for target_color in target_colors:
+                task_id = f"control_panel_{num_lights_str}lights_{task_idx:04d}"
                 
-                if (i + 1) % 10 == 0:
-                    print(f"  Generated {i + 1}/{count} {difficulty} tasks...")
-            except Exception as e:
-                # Raise exception to ensure user knows about the problem
-                # This prevents silent failures that could be missed in large outputs
-                raise RuntimeError(
-                    f"Failed to generate task {task_id}. This indicates a problem with the generation logic. "
-                    f"Original error: {e}"
-                ) from e
+                try:
+                    task_pair = generator.generate_single_task(
+                        task_id=task_id,
+                        difficulty=difficulty,
+                        seed=scene_seed,  # Same seed for same scene
+                        target_color=target_color
+                    )
+                    pairs.append(task_pair)
+                    task_idx += 1
+                except Exception as e:
+                    # Raise exception to ensure user knows about the problem
+                    # This prevents silent failures that could be missed in large outputs
+                    raise RuntimeError(
+                        f"Failed to generate task {task_id}. This indicates a problem with the generation logic. "
+                        f"Original error: {e}"
+                    ) from e
+            
+            if (i + 1) % 10 == 0:
+                print(f"  Generated {i + 1}/{count} {difficulty} scenes ({(i + 1) * 3} tasks)...")
     
     # Convert to dictionary format
     pairs_dict = []
