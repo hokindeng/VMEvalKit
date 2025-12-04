@@ -492,7 +492,7 @@ class LightSequenceTaskGenerator:
         temp_dir = Path(tempfile.mkdtemp())
         
         for idx, (num_lights, state_idx, task_type, question_index) in enumerate(selected_combinations):
-            # Generate task ID: light_sequence_灯数_题目类型
+            # Generate task ID: light_sequence_{num_lights}_type{task_type}_s{state_idx}_q{question_index}
             task_id = f"light_sequence_{num_lights}_type{task_type}_s{state_idx:02d}_q{question_index}"
             
             task = self.generate_single_task(
