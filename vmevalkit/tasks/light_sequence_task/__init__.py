@@ -16,6 +16,7 @@ from .light_sequence_reasoning import (
     LightSequenceTaskPair,
     LightSequenceDataset,
     LightSequenceTaskGenerator,
+    LightSequenceGenerator,
     create_dataset,
     render_light_sequence
 )
@@ -24,6 +25,7 @@ __all__ = [
     'LightSequenceTaskPair',
     'LightSequenceDataset',
     'LightSequenceTaskGenerator',
+    'LightSequenceGenerator',
     'create_dataset',
     'render_light_sequence'
 ]
