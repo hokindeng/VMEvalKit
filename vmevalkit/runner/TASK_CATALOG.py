@@ -178,6 +178,11 @@ TASK_REGISTRY = {
         'name': 'Subway Pathfinding',
         'description': 'Navigate through subway networks from source to destination',
         'module': 'vmevalkit.tasks.subway_pathfinding_task',
+    },
+    'light_sequence': {
+        'name': 'Light Sequence',
+        'description': 'Spatial reasoning and mathematical pattern recognition with light sequences',
+        'module': 'vmevalkit.tasks.light_sequence_task',
         'create_function': 'create_dataset',
         'process_dataset': lambda dataset, num_samples: dataset['pairs']
     }
