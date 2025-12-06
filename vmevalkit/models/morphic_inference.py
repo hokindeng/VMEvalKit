@@ -168,7 +168,7 @@ class MorphicService:
                 cwd=str(MORPHIC_PATH),
                 capture_output=True,
                 text=True,
-                timeout=900  # 15 minute timeout for large model
+                timeout=1800  # 30 minute timeout for distributed large model inference
             )
             
             success = result.returncode == 0
@@ -176,7 +176,7 @@ class MorphicService:
             
         except subprocess.TimeoutExpired:
             success = False
-            error_msg = "Morphic inference timed out (exceeded 15 minutes)"
+            error_msg = "Morphic inference timed out (exceeded 30 minutes)"
         except Exception as e:
             success = False
             error_msg = f"Morphic inference failed: {str(e)}"
@@ -270,14 +270,27 @@ class MorphicWrapper(ModelWrapper):
     ):
         """Initialize Morphic wrapper."""
         self.model = model
-        self.output_dir = Path(output_dir).resolve()  # Always use absolute path
-        self.output_dir.mkdir(exist_ok=True, parents=True)
+        self._output_dir = Path(output_dir).resolve()  # Always use absolute path
+        self._output_dir.mkdir(exist_ok=True, parents=True)
         self.kwargs = kwargs
         
         # Create MorphicService instance
         self.morphic_service = MorphicService(
-            model_id=model, output_dir=output_dir, **kwargs
+            model_id=model, output_dir=str(self._output_dir), **kwargs
         )
+    
+    @property
+    def output_dir(self) -> Path:
+        """Get the current output directory."""
+        return self._output_dir
+    
+    @output_dir.setter
+    def output_dir(self, value: Union[str, Path]):
+        """Set the output directory and update the service's output_dir too."""
+        self._output_dir = Path(value).resolve()
+        self._output_dir.mkdir(exist_ok=True, parents=True)
+        # Also update the service's output_dir
+        self.morphic_service.output_dir = self._output_dir
     
     def generate(
         self,
