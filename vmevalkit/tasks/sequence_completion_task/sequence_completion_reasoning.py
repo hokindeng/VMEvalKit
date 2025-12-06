@@ -13,7 +13,7 @@ Author: VMEvalKit Team
 import json
 import random
 import numpy as np
-from itertools import permutations
+from itertools import permutations, product
 from typing import List, Dict, Any, Optional, Tuple, Union
 from dataclasses import dataclass, asdict
 from datetime import datetime
@@ -39,41 +39,11 @@ SHAPE_MAP = {
     'star': 'star'
 }
 
-# Color mappings (Chinese to English)
-COLOR_MAP = {
-    '红': 'red',
-    '蓝': 'blue',
-    '绿': 'green',
-    '黄': 'yellow',
-    '橙': 'orange'
-}
+# Color list for validation and rendering
+COLORS = ['red', 'blue', 'green', 'yellow', 'orange']
 
-# Reverse color mapping (English to English, for consistency)
-COLOR_MAP_EN = {
-    'red': 'red',
-    'blue': 'blue',
-    'green': 'green',
-    'yellow': 'yellow',
-    'orange': 'orange'
-}
-
-# Position mappings (Chinese to English)
-POSITION_MAP = {
-    '上': 'top',
-    '下': 'bottom',
-    '左': 'left',
-    '右': 'right',
-    '中': 'center',
-    '前': 'front',
-    '后': 'back',
-    '左上': 'top-left',
-    '右上': 'top-right',
-    '左下': 'bottom-left',
-    '右下': 'bottom-right'
-}
-
-# English position list for checking
-POSITION_CHARS_EN = ['top', 'bottom', 'left', 'right', 'center', 'front', 'back', 'top-left', 'top-right', 'bottom-left', 'bottom-right']
+# Position list for validation and rendering (2D only, no 3D positions)
+POSITIONS = ['top', 'bottom', 'left', 'right', 'center', 'top-left', 'top-right', 'bottom-left', 'bottom-right']
 
 
 @dataclass
@@ -157,11 +127,11 @@ class SequenceRenderer:
         self.canvas_size = 10
         self.blank_cell_width = 1.2
         self.blank_cell_height = 1.2
-        # Standardized sizes for consistent rendering (increased for larger shapes)
-        self.shape_size = 0.45  # Increased from 0.35 to 0.45
-        self.color_circle_size = 0.45  # Increased from 0.35 to 0.45
-        self.number_fontsize = 48  # Increased from 40 to 48
-        self.text_fontsize = 28  # Increased from 24 to 28
+        # Standardized sizes for consistent rendering (further reduced font sizes)
+        self.shape_size = 0.55  # Reduced from 0.70 to 0.55 for smaller shape symbols
+        self.color_circle_size = 0.55  # Reduced from 0.70 to 0.55 for smaller color symbols
+        self.number_fontsize = 50  # Reduced from 64 to 50 for smaller numbers
+        self.text_fontsize = 32  # Reduced from 42 to 32 for smaller symbol text
     
     def render_sequence(self, sequence: List[Any], show_blank: bool = False, 
                        output_path: Optional[str] = None) -> None:
@@ -175,48 +145,63 @@ class SequenceRenderer:
         """
         num_elements = len(sequence)
         
-        # Calculate element spacing based on number of elements to fit in canvas
-        # Leave safe margins on both sides to prevent clipping
-        safe_margin = 1.0
+        # New logic: small margin, adaptive scaling based on sequence length
+        # Small safe margin to keep elements close to edges but not touching
+        safe_margin = 0.8  # Small margin (reduced from 2.5)
         
-        # Target spacing: significantly increased for better visual separation (especially for Type 5-8)
-        target_spacing = 2.5  # Increased from 2.0 to 2.5 for even larger spacing
+        # Target spacing for elements (consistent spacing for all types)
+        target_spacing = 1.5  # Reduced from 1.8 for more consistent spacing
         
-        # Calculate required width with target spacing
-        required_width = (num_elements - 1) * target_spacing
+        # Base element sizes (for short sequences, keep original size)
+        base_shape_size = self.shape_size
+        base_color_circle_size = self.color_circle_size
+        base_number_fontsize = self.number_fontsize
+        base_text_fontsize = self.text_fontsize
         
-        # Calculate available width (we'll adjust element size if needed)
+        # Calculate available width with small margin
         available_width = self.canvas_size - 2 * safe_margin
         
-        # Determine element size and spacing
-        if required_width <= available_width:
-            # Elements fit with target spacing, use original sizes
-            element_size_scale = 1.0
-            element_spacing = target_spacing
-            max_element_radius = max(self.shape_size, self.color_circle_size, self.blank_cell_width / 2) + 0.1
-        else:
-            # Sequence too long, need to scale down elements and adjust spacing
-            # Calculate scale factor to fit all elements
-            # We need: (num_elements - 1) * spacing + max_element_radius * 2 <= available_width
-            # Use a minimum spacing of 2.0 even when scaled down (increased from 1.5)
-            min_spacing = 2.0
-            max_element_radius_base = max(self.shape_size, self.color_circle_size, self.blank_cell_width / 2)
+        # Base element radius (for calculation)
+        max_element_radius_base = max(self.shape_size, self.color_circle_size, self.blank_cell_width / 2)
+        
+        # Try with original size first
+        element_size_scale = 1.0
+        element_spacing = target_spacing
+        
+        # Calculate total width needed with original size
+        total_width_needed = (num_elements - 1) * element_spacing + max_element_radius_base * 2
+        
+        # If doesn't fit, need to scale down (for long sequences)
+        if total_width_needed > available_width:
+            # Calculate required scale to fit
+            # We need: (num_elements - 1) * spacing + scaled_radius * 2 <= available_width
+            # Solve for scale: available_width = (num_elements - 1) * spacing + (base_radius * scale) * 2
+            # scale = (available_width - (num_elements - 1) * spacing) / (base_radius * 2)
             
-            # Try to fit with minimum spacing
-            total_width_with_min_spacing = (num_elements - 1) * min_spacing + max_element_radius_base * 2
-            if total_width_with_min_spacing <= available_width:
-                # Can fit with minimum spacing, use original size
-                element_size_scale = 1.0
-                element_spacing = min_spacing
-                max_element_radius = max_element_radius_base + 0.1
-            else:
-                # Need to scale down
-                # Calculate scale: available_width = (num_elements - 1) * min_spacing + scaled_radius * 2
-                max_radius_available = (available_width - (num_elements - 1) * min_spacing) / 2
+            # Try with target spacing first
+            max_radius_available = (available_width - (num_elements - 1) * target_spacing) / 2
+            if max_radius_available > 0:
                 element_size_scale = max_radius_available / max_element_radius_base
                 element_size_scale = max(0.3, min(1.0, element_size_scale))  # Limit scale between 0.3 and 1.0
-                element_spacing = min_spacing
-                max_element_radius = max_element_radius_base * element_size_scale + 0.1
+                element_spacing = target_spacing
+            else:
+                # Even with target spacing, need to reduce spacing too
+                # Use minimum spacing and calculate scale
+                min_spacing = 1.0
+                max_radius_available = (available_width - (num_elements - 1) * min_spacing) / 2
+                if max_radius_available > 0:
+                    element_size_scale = max_radius_available / max_element_radius_base
+                    element_size_scale = max(0.3, min(1.0, element_size_scale))
+                    element_spacing = min_spacing
+                else:
+                    # Very long sequence, need both smaller spacing and scale
+                    min_spacing = 0.8
+                    max_radius_available = (available_width - (num_elements - 1) * min_spacing) / 2
+                    element_size_scale = max(0.25, max_radius_available / max_element_radius_base) if max_radius_available > 0 else 0.25
+                    element_size_scale = max(0.25, min(1.0, element_size_scale))
+                    element_spacing = min_spacing
+        
+        max_element_radius = max_element_radius_base * element_size_scale
         
         # Check if sequence contains numbers - use edge-based spacing for numbers
         has_numbers = any(isinstance(elem, (int, float)) for elem in sequence if elem is not None)
@@ -252,7 +237,11 @@ class SequenceRenderer:
             plt.close(temp_fig)
             
             # Use fixed spacing between number edges (consistent gap for all pairs)
-            gap_between_numbers = element_spacing * 0.8  # Fixed gap between edges
+            # Make spacing consistent with other element types (center-to-center spacing)
+            # For numbers, we use edge-based spacing, so we need to calculate gap to match center-to-center spacing
+            # If element_spacing is center-to-center, we need: gap = element_spacing - (width1/2 + width2/2)
+            # But to keep it simple and consistent, use a fixed ratio
+            gap_between_numbers = element_spacing * 0.5  # Reduced from 0.8 to make spacing more consistent
             
             x_positions = []
             current_x = safe_margin
@@ -265,21 +254,66 @@ class SequenceRenderer:
                     # Move to next position: current number's right edge + gap + next number's left edge
                     current_x += number_widths[i] / 2 + gap_between_numbers + number_widths[i + 1] / 2
             
-            # Calculate total width for centering
-            total_width = current_x - safe_margin
-            # Adjust positions to center the sequence
-            offset = (self.canvas_size - total_width) / 2 - safe_margin
+            # Calculate the actual left and right edges of the sequence
+            # First element's left edge
+            first_number_left_edge = x_positions[0] - number_widths[0] / 2
+            # Last element's right edge (this includes the question mark)
+            last_number_right_edge = x_positions[-1] + number_widths[-1] / 2
+            # Total width from first element's left edge to last question mark's right edge
+            actual_total_width = last_number_right_edge - first_number_left_edge
+            # Calculate the center of the actual sequence
+            actual_sequence_center = first_number_left_edge + actual_total_width / 2
+            # Center the sequence in the canvas
+            canvas_center = self.canvas_size / 2
+            # Calculate offset to center the sequence
+            offset = canvas_center - actual_sequence_center
             x_positions = [x + offset for x in x_positions]
+            
+            # Final check: ensure small margins on both sides
+            first_pos_left = x_positions[0] - number_widths[0] / 2
+            last_pos_right = x_positions[-1] + number_widths[-1] / 2
+            if first_pos_left < safe_margin:
+                # Shift right to maintain left margin
+                shift = safe_margin - first_pos_left
+                x_positions = [x + shift for x in x_positions]
+            elif last_pos_right > self.canvas_size - safe_margin:
+                # Shift left to maintain right margin
+                shift = (self.canvas_size - safe_margin) - last_pos_right
+                x_positions = [x + shift for x in x_positions]
         else:
             # For non-number sequences: use center-based spacing (original method)
+            # Calculate total width from first element's left edge to last element's right edge
+            # This includes the question mark at the end
             total_width = (num_elements - 1) * element_spacing + max_element_radius * 2
-            start_x = (self.canvas_size - total_width) / 2 + max_element_radius
+            # Calculate the actual left and right edges of the sequence
+            # First, calculate a temporary start position
+            temp_start_x = max_element_radius
+            first_element_left = temp_start_x - max_element_radius
+            last_element_right = temp_start_x + (num_elements - 1) * element_spacing + max_element_radius
+            actual_total_width = last_element_right - first_element_left
+            # Calculate the center of the actual sequence
+            actual_sequence_center = first_element_left + actual_total_width / 2
+            # Center the sequence in the canvas
+            canvas_center = self.canvas_size / 2
+            # Calculate offset to center the sequence
+            center_offset = canvas_center - actual_sequence_center
+            # Calculate start_x with centering
+            start_x = temp_start_x + center_offset
             x_positions = [start_x + i * element_spacing for i in range(num_elements)]
+            
+            # Final check: ensure small margins on both sides
+            first_pos_left = x_positions[0] - max_element_radius
+            last_pos_right = x_positions[-1] + max_element_radius
+            if first_pos_left < safe_margin:
+                # Shift right to maintain left margin
+                shift = safe_margin - first_pos_left
+                x_positions = [x + shift for x in x_positions]
+            elif last_pos_right > self.canvas_size - safe_margin:
+                # Shift left to maintain right margin
+                shift = (self.canvas_size - safe_margin) - last_pos_right
+                x_positions = [x + shift for x in x_positions]
         
         center_y = self.canvas_size / 2  # Vertical center
-        
-        # Store scale factor for rendering
-        self._current_scale = element_size_scale
         
         fig, ax = plt.subplots(figsize=self.figsize, dpi=self.dpi)
         ax.set_xlim(0, self.canvas_size)
@@ -327,24 +361,12 @@ class SequenceRenderer:
             # Check if it's a shape, color, position, or mixed
             if element in SHAPE_MAP:
                 self._render_shape(ax, element, x, y)
-            elif element in COLOR_MAP or element in COLOR_MAP_EN:
-                # Support both Chinese and English color names
-                if element in COLOR_MAP:
-                    self._render_color(ax, element, x, y)
-                else:
-                    # English color name
-                    color_en = COLOR_MAP_EN.get(element, element)
-                    scale = getattr(self, '_current_scale', 1.0)
-                    circle = Circle((x, y), self.color_circle_size * scale, facecolor=color_en, edgecolor='black', linewidth=2)
-                    ax.add_patch(circle)
-            elif element in POSITION_MAP or element in POSITION_CHARS_EN:
-                # Support both Chinese and English position names
-                if element in POSITION_MAP:
-                    # Convert Chinese to English for rendering
-                    position_en = POSITION_MAP[element]
-                    self._render_position(ax, position_en, x, y)
-                else:
-                    self._render_position(ax, element, x, y)
+            elif element in COLORS:
+                # Color name (already in English)
+                self._render_color(ax, element, x, y)
+            elif element in POSITIONS:
+                # Position name (already in English)
+                self._render_position(ax, element, x, y)
             elif '+' in element or '○' in element or '□' in element or '△' in element or '◇' in element or 'star' in element:
                 # Mixed element (e.g., color+shape combination)
                 self._render_mixed(ax, element, x, y)
@@ -412,9 +434,9 @@ class SequenceRenderer:
     
     def _render_color(self, ax, color: str, x: float, y: float) -> None:
         """Render a color as a colored circle with standardized size (no text)."""
-        color_en = COLOR_MAP[color]
+        # Color is already in English format
         scale = getattr(self, '_current_scale', 1.0)
-        circle = Circle((x, y), self.color_circle_size * scale, facecolor=color_en, edgecolor='black', linewidth=2)
+        circle = Circle((x, y), self.color_circle_size * scale, facecolor=color, edgecolor='black', linewidth=2)
         ax.add_patch(circle)
         # No text - color circle is self-explanatory
     
@@ -422,75 +444,81 @@ class SequenceRenderer:
         """Render a position as an arrow pointing in the direction, centered at the position."""
         scale = getattr(self, '_current_scale', 1.0)
         # Increase arrow length for better visibility
-        arrow_size = self.shape_size * scale * 1.5  # Increased from 0.8 to 1.5
+        arrow_size = self.shape_size * scale * 2.2  # Increased from 1.8 to 2.2 for much larger arrows
         
-        # Map position to arrow direction
-        # Replace 3D positions (front/back) with 2D equivalents
-        position_2d = position.replace('front', 'left').replace('back', 'right')
+        # Map position to arrow direction (2D only)
+        position_2d = position
         
         # Draw arrow centered at position (arrow spans across the center point)
+        # Use thicker line width for better visibility
+        arrow_lw = 5 * scale  # Increased from 3 to 5 for thicker arrows
+        center_arrow_lw = 4 * scale  # Increased from 2 to 4 for center arrows
+        # Increase arrow head size for better visibility
+        arrow_head_scale = 30 * scale  # Increased from 20 to 30 for more prominent arrow heads
+        center_arrow_head_scale = 25 * scale  # Increased from 15 to 25 for center arrows
+        
         if 'top' in position_2d and 'left' in position_2d:
             # top-left - arrow from bottom-right to top-left, centered
             arrow = FancyArrowPatch((x + arrow_size * 0.35, y + arrow_size * 0.35), 
                                    (x - arrow_size * 0.35, y - arrow_size * 0.35),
-                                   arrowstyle='->', mutation_scale=20*scale, lw=3*scale, color='black')
+                                   arrowstyle='->', mutation_scale=arrow_head_scale, lw=arrow_lw, color='black')
             ax.add_patch(arrow)
         elif 'top' in position_2d and 'right' in position_2d:
             # top-right - arrow from bottom-left to top-right, centered
             arrow = FancyArrowPatch((x - arrow_size * 0.35, y + arrow_size * 0.35), 
                                    (x + arrow_size * 0.35, y - arrow_size * 0.35),
-                                   arrowstyle='->', mutation_scale=20*scale, lw=3*scale, color='black')
+                                   arrowstyle='->', mutation_scale=arrow_head_scale, lw=arrow_lw, color='black')
             ax.add_patch(arrow)
         elif 'bottom' in position_2d and 'left' in position_2d:
             # bottom-left - arrow from top-right to bottom-left, centered
             arrow = FancyArrowPatch((x + arrow_size * 0.35, y - arrow_size * 0.35), 
                                    (x - arrow_size * 0.35, y + arrow_size * 0.35),
-                                   arrowstyle='->', mutation_scale=20*scale, lw=3*scale, color='black')
+                                   arrowstyle='->', mutation_scale=arrow_head_scale, lw=arrow_lw, color='black')
             ax.add_patch(arrow)
         elif 'bottom' in position_2d and 'right' in position_2d:
             # bottom-right - arrow from top-left to bottom-right, centered
             arrow = FancyArrowPatch((x - arrow_size * 0.35, y - arrow_size * 0.35), 
                                    (x + arrow_size * 0.35, y + arrow_size * 0.35),
-                                   arrowstyle='->', mutation_scale=20*scale, lw=3*scale, color='black')
+                                   arrowstyle='->', mutation_scale=arrow_head_scale, lw=arrow_lw, color='black')
             ax.add_patch(arrow)
         elif 'top' in position_2d:
             # top - arrow from bottom to top, centered
             arrow = FancyArrowPatch((x, y + arrow_size * 0.5), (x, y - arrow_size * 0.5),
-                                   arrowstyle='->', mutation_scale=20*scale, lw=3*scale, color='black')
+                                   arrowstyle='->', mutation_scale=arrow_head_scale, lw=arrow_lw, color='black')
             ax.add_patch(arrow)
         elif 'bottom' in position_2d:
             # bottom - arrow from top to bottom, centered
             arrow = FancyArrowPatch((x, y - arrow_size * 0.5), (x, y + arrow_size * 0.5),
-                                   arrowstyle='->', mutation_scale=20*scale, lw=3*scale, color='black')
+                                   arrowstyle='->', mutation_scale=arrow_head_scale, lw=arrow_lw, color='black')
             ax.add_patch(arrow)
         elif 'left' in position_2d:
             # left - arrow from right to left, centered
             arrow = FancyArrowPatch((x + arrow_size * 0.5, y), (x - arrow_size * 0.5, y),
-                                   arrowstyle='->', mutation_scale=20*scale, lw=3*scale, color='black')
+                                   arrowstyle='->', mutation_scale=arrow_head_scale, lw=arrow_lw, color='black')
             ax.add_patch(arrow)
         elif 'right' in position_2d:
             # right - arrow from left to right, centered
             arrow = FancyArrowPatch((x - arrow_size * 0.5, y), (x + arrow_size * 0.5, y),
-                                   arrowstyle='->', mutation_scale=20*scale, lw=3*scale, color='black')
+                                   arrowstyle='->', mutation_scale=arrow_head_scale, lw=arrow_lw, color='black')
             ax.add_patch(arrow)
         elif 'center' in position_2d:
             # center - draw arrows pointing inward from all four directions, centered
             small_arrow = arrow_size * 0.4
             # Up arrow
             arrow_up = FancyArrowPatch((x, y + small_arrow * 0.5), (x, y - small_arrow * 0.5),
-                                      arrowstyle='->', mutation_scale=15*scale, lw=2*scale, color='black')
+                                      arrowstyle='->', mutation_scale=center_arrow_head_scale, lw=center_arrow_lw, color='black')
             ax.add_patch(arrow_up)
             # Down arrow
             arrow_down = FancyArrowPatch((x, y - small_arrow * 0.5), (x, y + small_arrow * 0.5),
-                                        arrowstyle='->', mutation_scale=15*scale, lw=2*scale, color='black')
+                                        arrowstyle='->', mutation_scale=center_arrow_head_scale, lw=center_arrow_lw, color='black')
             ax.add_patch(arrow_down)
             # Left arrow
             arrow_left = FancyArrowPatch((x + small_arrow * 0.5, y), (x - small_arrow * 0.5, y),
-                                        arrowstyle='->', mutation_scale=15*scale, lw=2*scale, color='black')
+                                        arrowstyle='->', mutation_scale=center_arrow_head_scale, lw=center_arrow_lw, color='black')
             ax.add_patch(arrow_left)
             # Right arrow
             arrow_right = FancyArrowPatch((x - small_arrow * 0.5, y), (x + small_arrow * 0.5, y),
-                                         arrowstyle='->', mutation_scale=15*scale, lw=2*scale, color='black')
+                                         arrowstyle='->', mutation_scale=center_arrow_head_scale, lw=center_arrow_lw, color='black')
             ax.add_patch(arrow_right)
     
     def _render_mixed(self, ax, mixed: str, x: float, y: float) -> None:
@@ -498,34 +526,25 @@ class SequenceRenderer:
         scale = getattr(self, '_current_scale', 1.0)
         
         shape_chars = ['○', '□', '△', '◇', 'star']
-        position_chars = ['top', 'bottom', 'left', 'right', 'center', 'front', 'back', 'top-left', 'top-right', 'bottom-left', 'bottom-right']
         
         # Priority 1: Check if it starts with a color (color+shape or color+position)
-        # Support both Chinese and English color names
         color_part = None
         remaining = None
         
-        # Check for Chinese color (single character)
-        if mixed and len(mixed) > 0 and mixed[0] in COLOR_MAP:
-            color_part = mixed[0]
-            remaining = mixed[1:]
         # Check for English color (e.g., 'red', 'blue', etc.)
-        elif mixed:
-            for color_en in COLOR_MAP_EN.keys():
-                if mixed.startswith(color_en):
-                    color_part = color_en
-                    remaining = mixed[len(color_en):]
+        if mixed:
+            for color in COLORS:
+                if mixed.startswith(color):
+                    color_part = color
+                    remaining = mixed[len(color):]
                     # Check if there's a separator (e.g., 'red-top' or 'red○')
                     if remaining.startswith('-'):
                         remaining = remaining[1:]  # Remove the separator
                     break
         
         if color_part:
-            # Get English color name
-            if color_part in COLOR_MAP:
-                color_en = COLOR_MAP[color_part]
-            else:
-                color_en = COLOR_MAP_EN.get(color_part, color_part)
+            # Color is already in English format
+            color_en = color_part
             
             # Check if remaining part is a shape
             if remaining and remaining in SHAPE_MAP:
@@ -565,23 +584,18 @@ class SequenceRenderer:
                 return
             
             # Check if remaining part is a position
-            elif remaining and (remaining in position_chars or any(p in remaining for p in position_chars)):
+            elif remaining and (remaining in POSITIONS or any(p in remaining for p in POSITIONS)):
                 # Color + Position: render color circle, then position arrow
-                # For English colors, we need to use the color name directly
-                if color_part in COLOR_MAP:
-                    self._render_color(ax, color_part, x, y)
-                else:
-                    # Direct English color name
-                    circle = Circle((x, y), self.color_circle_size * scale, facecolor=color_en, edgecolor='black', linewidth=2)
-                    ax.add_patch(circle)
+                circle = Circle((x, y), self.color_circle_size * scale, facecolor=color_en, edgecolor='black', linewidth=2)
+                ax.add_patch(circle)
                 self._render_position(ax, remaining, x, y)
                 return
         
-        # Priority 2: Check if it's shape+position (e.g., '○top', '△front')
+        # Priority 2: Check if it's shape+position (e.g., '○top', '△left')
         for shape_char in shape_chars:
             if mixed.startswith(shape_char):
                 position_part = mixed[len(shape_char):]
-                if position_part in position_chars or any(p in position_part for p in position_chars):
+                if position_part in POSITIONS or any(p in position_part for p in POSITIONS):
                     # Shape + Position: render shape first, then arrow
                     self._render_shape(ax, shape_char, x, y)
                     self._render_position(ax, position_part, x, y)
@@ -681,6 +695,14 @@ class SequenceCompletionTaskGenerator:
         first_frame_path = output_dir / "first_frame.png"
         final_frame_path = output_dir / "final_frame.png"
         
+        # For Type 5, 6, and 7 with len7 or len8, reduce font sizes
+        original_shape_size = self.renderer.shape_size
+        original_color_circle_size = self.renderer.color_circle_size
+        if (task_type in [5, 6, 7]) and (task_params.get('length', 0) in [7, 8]):
+            # Reduce font sizes for Type 5, 6, and 7, len7 and len8
+            self.renderer.shape_size = 0.45  # Reduced from 0.55 (affects Type 5 shapes and Type 7 arrows)
+            self.renderer.color_circle_size = 0.45  # Reduced from 0.55 (affects Type 6 colors)
+        
         # First frame: sequence with blank last cell
         # Add None as placeholder for the blank cell
         sequence_with_blank = sequence + [None]
@@ -691,6 +713,10 @@ class SequenceCompletionTaskGenerator:
         complete_sequence = sequence + [answer]
         self.renderer.render_sequence(complete_sequence, show_blank=False,
                                      output_path=str(final_frame_path))
+        
+        # Restore original sizes
+        self.renderer.shape_size = original_shape_size
+        self.renderer.color_circle_size = original_color_circle_size
         
         # Generate prompt
         sequence_str = self.format_sequence_str(sequence)
@@ -821,22 +847,23 @@ class SequenceCompletionTaskGenerator:
                 all_tasks.append((task_id, 6, task_params))
                 task_id_counter += 1
         
-        # Type 7: Position Cycle (54 tasks)
-        # Define position sets (replaced 'center' with other positions)
+        # Type 7: Position Cycle (2D positions only, no 3D positions)
+        # Define position sets (2D only: top, bottom, left, right, center, and diagonals)
         position_sets_3 = [
-            ['top', 'bottom', 'left'], ['left', 'right', 'top'], ['front', 'back', 'left'],
-            ['top-left', 'bottom-right', 'top-right'], ['top-right', 'bottom-left', 'top-left']
+            ['top', 'bottom', 'left'], ['left', 'right', 'top'], ['top', 'bottom', 'right'],
+            ['top-left', 'bottom-right', 'top-right'], ['top-right', 'bottom-left', 'top-left'],
+            ['left', 'right', 'bottom'], ['top-left', 'bottom-left', 'top-right']
         ]
         position_sets_4 = [
             ['top', 'bottom', 'left', 'right'], ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
-            ['front', 'back', 'left', 'right'], ['top', 'bottom', 'left', 'right'],
             ['top', 'bottom', 'left', 'right'], ['left', 'right', 'top', 'bottom'],
-            ['left', 'right', 'top', 'bottom'], ['front', 'back', 'left', 'right']
+            ['left', 'right', 'top', 'bottom'], ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
+            ['top', 'left', 'bottom', 'right'], ['top-right', 'bottom-left', 'top-left', 'bottom-right']
         ]
         position_sets_5 = [
             ['top', 'bottom', 'left', 'right', 'top-left'], ['top-left', 'top-right', 'bottom-left', 'bottom-right', 'top'],
-            ['front', 'back', 'left', 'right', 'top'], ['top', 'bottom', 'left', 'right', 'front'],
-            ['front', 'back', 'left', 'right', 'bottom']
+            ['top', 'bottom', 'left', 'right', 'center'], ['top-left', 'top-right', 'bottom-left', 'bottom-right', 'center'],
+            ['top', 'left', 'bottom', 'right', 'top-left']
         ]
         
         for cycle in position_sets_3:
@@ -860,45 +887,25 @@ class SequenceCompletionTaskGenerator:
                 all_tasks.append((task_id, 7, task_params))
                 task_id_counter += 1
         
-        # Type 8: Mixed Sequence (480 tasks)
-        # color_shape combinations
-        color_shape_cycles = [
-            ['red○', 'blue□', 'green△'], ['red○', 'blue□', 'green◇'], ['red○', 'blue□', 'greenstar'],
-            ['red○', 'blue△', 'green◇'], ['red○', 'blue△', 'greenstar'], ['red○', 'blue◇', 'greenstar'],
-            ['red□', 'blue△', 'green◇'], ['red□', 'blue△', 'greenstar'], ['red□', 'blue◇', 'greenstar'],
-            ['red△', 'blue◇', 'greenstar'],
-            # With yellow
-            ['red○', 'yellow□', 'orange△'], ['red○', 'yellow□', 'orange◇'], ['red○', 'yellow□', 'orangestar'],
-            ['red○', 'yellow△', 'orange◇'], ['red○', 'yellow△', 'orangestar'], ['red○', 'yellow◇', 'orangestar'],
-            ['red□', 'yellow△', 'orange◇'], ['red□', 'yellow△', 'orangestar'], ['red□', 'yellow◇', 'orangestar'],
-            ['red△', 'yellow◇', 'orangestar'],
-            # With green
-            ['red○', 'green□', 'yellow△'], ['red○', 'green□', 'yellow◇'], ['red○', 'green□', 'yellowstar'],
-            ['red○', 'green□', 'orange△'], ['red○', 'green□', 'orange◇'], ['red○', 'green□', 'orangestar'],
-            ['red○', 'green△', 'yellow◇'], ['red○', 'green△', 'yellowstar'], ['red○', 'green△', 'orange◇'],
-            ['red○', 'green△', 'orangestar'], ['red○', 'green◇', 'yellowstar'], ['red○', 'green◇', 'orangestar'],
-            ['red□', 'green△', 'yellow◇'], ['red□', 'green△', 'yellowstar'], ['red□', 'green△', 'orange◇'],
-            ['red□', 'green△', 'orangestar'], ['red□', 'green◇', 'yellowstar'], ['red□', 'green◇', 'orangestar'],
-            ['red△', 'green◇', 'yellowstar'], ['red△', 'green◇', 'orangestar'],
-            # Blue combinations
-            ['blue○', 'green□', 'yellow△'], ['blue○', 'green□', 'yellow◇'], ['blue○', 'green□', 'yellowstar'],
-            ['blue○', 'green□', 'orange△'], ['blue○', 'green□', 'orange◇'], ['blue○', 'green□', 'orangestar'],
-            ['blue○', 'green△', 'yellow◇'], ['blue○', 'green△', 'yellowstar'], ['blue○', 'green△', 'orange◇'],
-            ['blue○', 'green△', 'orangestar'], ['blue○', 'green◇', 'yellowstar'], ['blue○', 'green◇', 'orangestar'],
-            ['blue□', 'green△', 'yellow◇'], ['blue□', 'green△', 'yellowstar'], ['blue□', 'green△', 'orange◇'],
-            ['blue□', 'green△', 'orangestar'], ['blue□', 'green◇', 'yellowstar'], ['blue□', 'green◇', 'orangestar'],
-            ['blue△', 'green◇', 'yellowstar'], ['blue△', 'green◇', 'orangestar'],
-            # Blue with yellow/orange
-            ['blue○', 'yellow□', 'orange△'], ['blue○', 'yellow□', 'orange◇'], ['blue○', 'yellow□', 'orangestar'],
-            ['blue○', 'yellow△', 'orange◇'], ['blue○', 'yellow△', 'orangestar'], ['blue○', 'yellow◇', 'orangestar'],
-            ['blue□', 'yellow△', 'orange◇'], ['blue□', 'yellow△', 'orangestar'], ['blue□', 'yellow◇', 'orangestar'],
-            ['blue△', 'yellow◇', 'orangestar'],
-            # Green with yellow/orange
-            ['green○', 'yellow□', 'orange△'], ['green○', 'yellow□', 'orange◇'], ['green○', 'yellow□', 'orangestar'],
-            ['green○', 'yellow△', 'orange◇'], ['green○', 'yellow△', 'orangestar'], ['green○', 'yellow◇', 'orangestar'],
-            ['green□', 'yellow△', 'orange◇'], ['green□', 'yellow△', 'orangestar'], ['green□', 'yellow◇', 'orangestar'],
-            ['green△', 'yellow◇', 'orangestar']
-        ]
+        # Type 8: Mixed Sequence
+        # Generate combinations dynamically using itertools
+        
+        # color_shape combinations: generate all 3-element cycles of color+shape
+        # Each cycle uses 3 different colors and 3 different shapes
+        # Limit to avoid generating too many tasks (use first N combinations)
+        color_shape_cycles = []
+        limit_reached = False
+        for color_combo in permutations(COLORS, 3):
+            if limit_reached:
+                break
+            for shape_combo in permutations(SHAPE_MAP.keys(), 3):
+                # Create cycle: [color1+shape1, color2+shape2, color3+shape3]
+                cycle = [f"{color}{shape}" for color, shape in zip(color_combo, shape_combo)]
+                color_shape_cycles.append(cycle)
+                # Limit to approximately 48 cycles (similar to original hardcoded list)
+                if len(color_shape_cycles) >= 48:
+                    limit_reached = True
+                    break
         
         for cycle in color_shape_cycles:
             for length in [6, 7, 8]:
@@ -907,19 +914,23 @@ class SequenceCompletionTaskGenerator:
                 all_tasks.append((task_id, 8, task_params))
                 task_id_counter += 1
         
-        # color_position combinations (replaced 'center' with other positions)
-        color_position_cycles = [
-            ['red-top', 'blue-bottom', 'green-left'], ['red-left', 'blue-right', 'green-top'], ['red-front', 'blue-back', 'green-left'],
-            ['red-top', 'blue-bottom', 'yellow-left'], ['red-left', 'blue-right', 'yellow-top'], ['red-front', 'blue-back', 'yellow-left'],
-            ['red-top', 'blue-bottom', 'orange-left'], ['red-left', 'blue-right', 'orange-top'], ['red-front', 'blue-back', 'orange-left'],
-            ['red-top', 'green-bottom', 'yellow-left'], ['red-left', 'green-right', 'yellow-top'], ['red-front', 'green-back', 'yellow-left'],
-            ['red-top', 'green-bottom', 'orange-left'], ['red-left', 'green-right', 'orange-top'], ['red-front', 'green-back', 'orange-left'],
-            ['red-top', 'yellow-bottom', 'orange-left'], ['red-left', 'yellow-right', 'orange-top'], ['red-front', 'yellow-back', 'orange-left'],
-            ['blue-top', 'green-bottom', 'yellow-left'], ['blue-left', 'green-right', 'yellow-top'], ['blue-front', 'green-back', 'yellow-left'],
-            ['blue-top', 'green-bottom', 'orange-left'], ['blue-left', 'green-right', 'orange-top'], ['blue-front', 'green-back', 'orange-left'],
-            ['blue-top', 'yellow-bottom', 'orange-left'], ['blue-left', 'yellow-right', 'orange-top'], ['blue-front', 'yellow-back', 'orange-left'],
-            ['green-top', 'yellow-bottom', 'orange-left'], ['green-left', 'yellow-right', 'orange-top'], ['green-front', 'yellow-back', 'orange-left']
-        ]
+        # color_position combinations: generate all 3-element cycles of color+position
+        # Each cycle uses 3 different colors and 3 different positions (2D only)
+        # Use basic 2D positions: top, bottom, left, right (exclude center and diagonals for simplicity)
+        basic_positions = ['top', 'bottom', 'left', 'right']
+        color_position_cycles = []
+        limit_reached = False
+        for color_combo in permutations(COLORS, 3):
+            if limit_reached:
+                break
+            for pos_combo in permutations(basic_positions, 3):
+                # Create cycle: [color1-position1, color2-position2, color3-position3]
+                cycle = [f"{color}-{pos}" for color, pos in zip(color_combo, pos_combo)]
+                color_position_cycles.append(cycle)
+                # Limit to approximately 30 cycles (similar to original hardcoded list)
+                if len(color_position_cycles) >= 30:
+                    limit_reached = True
+                    break
         
         for cycle in color_position_cycles:
             for length in [6, 7, 8]:
@@ -928,19 +939,28 @@ class SequenceCompletionTaskGenerator:
                 all_tasks.append((task_id, 8, task_params))
                 task_id_counter += 1
         
-        # shape_position combinations (replaced 'center' with other positions)
-        shape_position_cycles = [
-            ['○top', '□bottom', '△left'], ['○left', '□right', '△top'], ['○front', '□back', '△left'],
-            ['○top', '□bottom', '◇left'], ['○left', '□right', '◇top'], ['○front', '□back', '◇left'],
-            ['○top', '□bottom', 'starleft'], ['○left', '□right', 'startop'], ['○front', '□back', 'starleft'],
-            ['○top', '△bottom', '◇left'], ['○left', '△right', '◇top'], ['○front', '△back', '◇left'],
-            ['○top', '△bottom', 'starleft'], ['○left', '△right', 'startop'], ['○front', '△back', 'starleft'],
-            ['○top', '◇bottom', 'starleft'], ['○left', '◇right', 'startop'], ['○front', '◇back', 'starleft'],
-            ['□top', '△bottom', '◇left'], ['□left', '△right', '◇top'], ['□front', '△back', '◇left'],
-            ['□top', '△bottom', 'starleft'], ['□left', '△right', 'startop'], ['□front', '△back', 'starleft'],
-            ['□top', '◇bottom', 'starleft'], ['□left', '◇right', 'startop'], ['□front', '◇back', 'starleft'],
-            ['△top', '◇bottom', 'starleft'], ['△left', '◇right', 'startop'], ['△front', '◇back', 'starleft']
-        ]
+        # shape_position combinations: generate all 3-element cycles of shape+position
+        # Each cycle uses 3 different shapes and 3 different positions (2D only)
+        # Use basic 2D positions: top, bottom, left, right (exclude center and diagonals for simplicity)
+        shape_position_cycles = []
+        limit_reached = False
+        for shape_combo in permutations(SHAPE_MAP.keys(), 3):
+            if limit_reached:
+                break
+            for pos_combo in permutations(basic_positions, 3):
+                # Create cycle: [shape1+position1, shape2+position2, shape3+position3]
+                # Note: 'star' needs special handling (no separator)
+                cycle = []
+                for shape, pos in zip(shape_combo, pos_combo):
+                    if shape == 'star':
+                        cycle.append(f"star{pos}")
+                    else:
+                        cycle.append(f"{shape}{pos}")
+                shape_position_cycles.append(cycle)
+                # Limit to approximately 30 cycles (similar to original hardcoded list)
+                if len(shape_position_cycles) >= 30:
+                    limit_reached = True
+                    break
         
         for cycle in shape_position_cycles:
             for length in [6, 7, 8]:
