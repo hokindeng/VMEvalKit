@@ -11,9 +11,9 @@ create_model_venv "$MODEL"
 activate_model_venv "$MODEL"
 
 print_section "Dependencies"
-pip install -q httpx aiohttp requests tenacity openai
-pip install -q pydantic pydantic-settings python-dotenv
-pip install -q Pillow numpy imageio imageio-ffmpeg
+pip install -q httpx==0.28.1 aiohttp==3.12.12 requests==2.32.5 tenacity==9.1.2 openai==1.86.0
+pip install -q pydantic==2.12.5 pydantic-settings==2.12.0 python-dotenv==1.2.1
+pip install -q Pillow==12.0.0 numpy==2.2.6 imageio==2.37.2 imageio-ffmpeg==0.6.0
 
 deactivate
 
