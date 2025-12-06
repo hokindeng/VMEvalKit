@@ -5,7 +5,7 @@ Wrapper for SGLang to support video models: Wan-series, FastWan, Hunyuan, etc.
 SGLang provides support for video models that are not available in diffusers.
 
 Note: SGLang Issue #12850 has been fixed (closed on 2025-11-09). 
-This implementation is ready for testing. SGLang may require Docker for some models.
+This implementation is ready for testing. Docker is recommended for reproducibility, but local GPU installation is also supported.
 
 Reference:
 - https://lmsys.org/blog/2025-11-07-sglang-diffusion/
@@ -64,7 +64,9 @@ class SGLangService:
             model_id: Model identifier (hunyuan-video-i2v, wan-2.1, wan-2.2, fastwan)
             output_dir: Directory to save generated videos
             sglang_server_url: Optional SGLang server URL (if running as service)
-            use_docker: Whether to use Docker (default: True, required for some models)
+            use_docker: Whether to run inference inside Docker. 
+                        Default is True (recommended for reproducibility), but can be set to False 
+                        for local GPU installations since SGLang officially supports non-Docker usage.
             **kwargs: Additional parameters
         """
         self.model_id = model_id
@@ -98,8 +100,9 @@ class SGLangService:
         except ImportError as e:
             raise ImportError(
                 "SGLang is required but not installed. "
-                "Install with: pip install sglang[all]\n"
-                "Note: SGLang may require Docker for some models. "
+                "Install with: pip install \"sglang[all]\" (recommended)\n"
+                "Optional: uv pip install \"sglang[all]\" can also be used.\n"
+                "Note: Docker is recommended for consistent environments, but local installation is officially supported by SGLang. "
                 "See https://github.com/sgl-project/sglang for installation instructions."
             ) from e
     
@@ -189,13 +192,13 @@ class SGLangService:
         
         # Use SGLang (CLI or Python API)
         # Note: ImportError is already checked in __init__, so imports are safe here
-        import sglang
+            import sglang
         from sglang.multimodal_gen import DiffGenerator
-        
-        logger.info(
-            "SGLang inference: Issue #12850 has been fixed (closed on 2025-11-09). "
-            "Implementation is ready for testing."
-        )
+            
+            logger.info(
+                "SGLang inference: Issue #12850 has been fixed (closed on 2025-11-09). "
+                "Implementation is ready for testing."
+            )
         
         try:
             
@@ -350,7 +353,7 @@ class SGLangService:
                     if "image_path" in str(e):
                         generate_kwargs.pop("image_path", None)
                         generate_kwargs["image"] = str(image_path)
-                        video_result = generator.generate(**generate_kwargs)
+                video_result = generator.generate(**generate_kwargs)
                     else:
                         raise
                 
