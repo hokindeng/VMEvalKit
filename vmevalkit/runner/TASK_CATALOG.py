@@ -153,6 +153,13 @@ TASK_REGISTRY = {
         'hf_dataset': 'camelCase12/vpct-1',
         'hf_special_format': True  # Indicates file-based format, not standard dataset format
     },
+    'tetris': {
+        'name': 'Tetris',
+        'description': 'Tetris line-clearing reasoning tasks with animation instructions',
+        'module': 'vmevalkit.tasks.tetris_task',
+        'create_function': 'create_dataset',
+        'process_dataset': lambda dataset, num_samples: dataset['pairs']
+    },
     'mirror_clock': {
         'name': 'Mirror Clock',
         'description': 'Spatial reasoning and mirror transformation using analog clock reflections',
