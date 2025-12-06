@@ -29,7 +29,8 @@ TASK_GUIDANCE = {
     "subway_pathfinding_task": "Check if the agent icon in the final frame is at the correct destination_station. Award 1 point if destination matches, 0 otherwise."
     "object_subtraction_task": "Verify that the specified object(s) have been correctly removed from the scene, while other objects remain unchanged and the scene remains complete.",
     "object_permanence_task": "Verify that the object(s) remain unchanged in position, color, and shape, and the occluder is moved out of the frame.",
-    "light_sequence_task": "Verify that the correct lights are on and all other lights are off in the final frame."
+    "light_sequence_task": "Verify that the correct lights are on and all other lights are off in the final frame.",
+    "sequence_completion_task": "Verify that the sequence is correctly completed with the next element that follows the pattern. The final frame should show the complete sequence with the correct answer element."
 }
 
 
