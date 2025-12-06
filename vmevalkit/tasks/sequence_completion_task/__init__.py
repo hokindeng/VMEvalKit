@@ -3,8 +3,8 @@ Sequence Completion Task Module for VMEvalKit
 
 This module provides sequence completion reasoning tasks for evaluating video models' ability to:
 - Recognize mathematical patterns (arithmetic, geometric, power, Fibonacci sequences)
-- Understand cyclic patterns (shape, color, position cycles)
-- Handle mixed attribute sequences (color+shape, color+position, shape+position)
+- Understand cyclic patterns (shape, color, direction cycles)
+- Handle mixed attribute sequences (color+shape combinations)
 - Demonstrate pattern recognition and sequence completion through video generation
 
 The sequence completion tasks test pattern recognition, mathematical reasoning, and logical

@@ -150,7 +150,11 @@ class SequenceRenderer:
         safe_margin = 0.8  # Small margin (reduced from 2.5)
         
         # Target spacing for elements (consistent spacing for all types)
-        target_spacing = 1.5  # Reduced from 1.8 for more consistent spacing
+        # For Type 7 and Type 8 len7-8, use slightly larger spacing
+        if getattr(self, '_type7_long_spacing', False) or getattr(self, '_type8_long_spacing', False):
+            target_spacing = 2.5  # Increased spacing for Type 7/8 len7-8 (increased from 2.0)
+        else:
+            target_spacing = 1.5  # Standard spacing
         
         # Base element sizes (for short sequences, keep original size)
         base_shape_size = self.shape_size
@@ -167,6 +171,9 @@ class SequenceRenderer:
         # Try with original size first
         element_size_scale = 1.0
         element_spacing = target_spacing
+        
+        # For Type 7/8 len7-8, we want to maintain larger spacing even if we need to scale down
+        is_type7_or8_long = getattr(self, '_type7_long_spacing', False) or getattr(self, '_type8_long_spacing', False)
         
         # Calculate total width needed with original size
         total_width_needed = (num_elements - 1) * element_spacing + max_element_radius_base * 2
@@ -186,8 +193,14 @@ class SequenceRenderer:
                 element_spacing = target_spacing
             else:
                 # Even with target spacing, need to reduce spacing too
-                # Use minimum spacing and calculate scale
-                min_spacing = 1.0
+                # For Type 7/8 len7-8, try to maintain larger spacing by using a higher min_spacing
+                if is_type7_or8_long:
+                    # For Type 7/8 len7-8, use a higher minimum spacing to maintain visual separation
+                    min_spacing = 1.5  # Higher minimum for Type 7/8 len7-8
+                else:
+                    # Use minimum spacing and calculate scale
+                    min_spacing = 1.0
+                
                 max_radius_available = (available_width - (num_elements - 1) * min_spacing) / 2
                 if max_radius_available > 0:
                     element_size_scale = max_radius_available / max_element_radius_base
@@ -195,7 +208,12 @@ class SequenceRenderer:
                     element_spacing = min_spacing
                 else:
                     # Very long sequence, need both smaller spacing and scale
-                    min_spacing = 0.8
+                    if is_type7_or8_long:
+                        # For Type 7/8 len7-8, still try to maintain larger spacing
+                        min_spacing = 1.2  # Still higher than default 0.8
+                    else:
+                        min_spacing = 0.8
+                    
                     max_radius_available = (available_width - (num_elements - 1) * min_spacing) / 2
                     element_size_scale = max(0.25, max_radius_available / max_element_radius_base) if max_radius_available > 0 else 0.25
                     element_size_scale = max(0.25, min(1.0, element_size_scale))
@@ -368,7 +386,11 @@ class SequenceRenderer:
                 # Position name (already in English)
                 self._render_position(ax, element, x, y)
             elif '+' in element or '○' in element or '□' in element or '△' in element or '◇' in element or 'star' in element:
-                # Mixed element (e.g., color+shape combination)
+                # Mixed element (e.g., color+shape or shape+position combination)
+                self._render_mixed(ax, element, x, y)
+            elif '-' in element and any(color in element for color in COLORS):
+                # Mixed element: color+position (e.g., 'red-top', 'blue-bottom')
+                # Check if it starts with a color and has a position after '-'
                 self._render_mixed(ax, element, x, y)
             else:
                 # Plain text with standardized size
@@ -698,6 +720,20 @@ class SequenceCompletionTaskGenerator:
         # For Type 5, 6, and 7 with len7 or len8, reduce font sizes
         original_shape_size = self.renderer.shape_size
         original_color_circle_size = self.renderer.color_circle_size
+        
+        # For Type 7 and Type 8 with len7 or len8, increase spacing between elements
+        if task_type == 7 and task_params.get('length', 0) in [7, 8]:
+            # Set flag to increase spacing for Type 7 len7-8
+            self.renderer._type7_long_spacing = True
+            self.renderer._type8_long_spacing = False
+        elif task_type == 8 and task_params.get('length', 0) in [7, 8]:
+            # Set flag to increase spacing for Type 8 len7-8
+            self.renderer._type8_long_spacing = True
+            self.renderer._type7_long_spacing = False
+        else:
+            self.renderer._type7_long_spacing = False
+            self.renderer._type8_long_spacing = False
+        
         if (task_type in [5, 6, 7]) and (task_params.get('length', 0) in [7, 8]):
             # Reduce font sizes for Type 5, 6, and 7, len7 and len8
             self.renderer.shape_size = 0.45  # Reduced from 0.55 (affects Type 5 shapes and Type 7 arrows)
@@ -717,11 +753,13 @@ class SequenceCompletionTaskGenerator:
         # Restore original sizes
         self.renderer.shape_size = original_shape_size
         self.renderer.color_circle_size = original_color_circle_size
+        # Clear spacing flags
+        self.renderer._type7_long_spacing = False
+        self.renderer._type8_long_spacing = False
         
-        # Generate prompt
-        sequence_str = self.format_sequence_str(sequence)
+        # Generate prompt (no longer includes sequence string)
         prompt_template = TYPE_PROMPTS[task_type]
-        prompt = prompt_template.format(sequence_str=sequence_str)
+        prompt = prompt_template
         
         # Save prompt
         prompt_path = output_dir / "prompt.txt"
@@ -847,7 +885,7 @@ class SequenceCompletionTaskGenerator:
                 all_tasks.append((task_id, 6, task_params))
                 task_id_counter += 1
         
-        # Type 7: Position Cycle (2D positions only, no 3D positions)
+        # Type 7: Direction Cycle (2D directions only, no 3D directions)
         # Define position sets (2D only: top, bottom, left, right, center, and diagonals)
         position_sets_3 = [
             ['top', 'bottom', 'left'], ['left', 'right', 'top'], ['top', 'bottom', 'right'],
@@ -887,8 +925,9 @@ class SequenceCompletionTaskGenerator:
                 all_tasks.append((task_id, 7, task_params))
                 task_id_counter += 1
         
-        # Type 8: Mixed Sequence
+        # Type 8: Mixed Sequence (Color + Shape only)
         # Generate combinations dynamically using itertools
+        # Only color_shape combinations are generated (color+position and shape+position are removed)
         
         # color_shape combinations: generate all 3-element cycles of color+shape
         # Each cycle uses 3 different colors and 3 different shapes
@@ -911,61 +950,6 @@ class SequenceCompletionTaskGenerator:
             for length in [6, 7, 8]:
                 task_id = f"sequence_completion_type8_{task_id_counter:04d}"
                 task_params = {'cycle': cycle, 'length': length, 'mixed_type': 'color_shape'}
-                all_tasks.append((task_id, 8, task_params))
-                task_id_counter += 1
-        
-        # color_position combinations: generate all 3-element cycles of color+position
-        # Each cycle uses 3 different colors and 3 different positions (2D only)
-        # Use basic 2D positions: top, bottom, left, right (exclude center and diagonals for simplicity)
-        basic_positions = ['top', 'bottom', 'left', 'right']
-        color_position_cycles = []
-        limit_reached = False
-        for color_combo in permutations(COLORS, 3):
-            if limit_reached:
-                break
-            for pos_combo in permutations(basic_positions, 3):
-                # Create cycle: [color1-position1, color2-position2, color3-position3]
-                cycle = [f"{color}-{pos}" for color, pos in zip(color_combo, pos_combo)]
-                color_position_cycles.append(cycle)
-                # Limit to approximately 30 cycles (similar to original hardcoded list)
-                if len(color_position_cycles) >= 30:
-                    limit_reached = True
-                    break
-        
-        for cycle in color_position_cycles:
-            for length in [6, 7, 8]:
-                task_id = f"sequence_completion_type8_{task_id_counter:04d}"
-                task_params = {'cycle': cycle, 'length': length, 'mixed_type': 'color_position'}
-                all_tasks.append((task_id, 8, task_params))
-                task_id_counter += 1
-        
-        # shape_position combinations: generate all 3-element cycles of shape+position
-        # Each cycle uses 3 different shapes and 3 different positions (2D only)
-        # Use basic 2D positions: top, bottom, left, right (exclude center and diagonals for simplicity)
-        shape_position_cycles = []
-        limit_reached = False
-        for shape_combo in permutations(SHAPE_MAP.keys(), 3):
-            if limit_reached:
-                break
-            for pos_combo in permutations(basic_positions, 3):
-                # Create cycle: [shape1+position1, shape2+position2, shape3+position3]
-                # Note: 'star' needs special handling (no separator)
-                cycle = []
-                for shape, pos in zip(shape_combo, pos_combo):
-                    if shape == 'star':
-                        cycle.append(f"star{pos}")
-                    else:
-                        cycle.append(f"{shape}{pos}")
-                shape_position_cycles.append(cycle)
-                # Limit to approximately 30 cycles (similar to original hardcoded list)
-                if len(shape_position_cycles) >= 30:
-                    limit_reached = True
-                    break
-        
-        for cycle in shape_position_cycles:
-            for length in [6, 7, 8]:
-                task_id = f"sequence_completion_type8_{task_id_counter:04d}"
-                task_params = {'cycle': cycle, 'length': length, 'mixed_type': 'shape_position'}
                 all_tasks.append((task_id, 8, task_params))
                 task_id_counter += 1
         

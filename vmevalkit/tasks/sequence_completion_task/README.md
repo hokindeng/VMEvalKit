@@ -84,7 +84,9 @@ Tests understanding of additive sequences where each element is the sum of previ
 Tests understanding of repeating shape patterns.
 
 **Pattern**: Shapes repeat in a fixed cycle
-**Example**: [○, □, △, ○, ?] → Answer: □
+**Examples**: 
+- Cycle [○, □, △]: [○, □, △, ○, □, ?] → Answer: △
+- Cycle [◇, star]: [◇, star, ◇, star, ?] → Answer: ◇
 **Parameters**: cycle_length[3,4,5], shapes[○,□,△,◇,star], length[5-8]
 **Total**: 141 tasks
 
@@ -92,25 +94,31 @@ Tests understanding of repeating shape patterns.
 Tests understanding of repeating color patterns.
 
 **Pattern**: Colors repeat in a fixed cycle
-**Example**: [red, blue, green, red, ?] → Answer: blue
+**Examples**: 
+- Cycle [red, blue, green]: [red, blue, green, red, blue, ?] → Answer: green
+- Cycle [yellow, orange]: [yellow, orange, yellow, orange, ?] → Answer: yellow
 **Parameters**: cycle_length[3,4], colors[red,blue,green,yellow,orange], length[5-8]
 **Total**: 110 tasks
 
-### Type 7: Position Cycle
-Tests understanding of repeating position patterns.
+### Type 7: Direction Cycle
+Tests understanding of repeating direction patterns.
 
-**Pattern**: Positions repeat in a fixed cycle
-**Example**: [top, center, bottom, top, ?] → Answer: center
-**Parameters**: cycle_length[3,4,5], positions[various combinations], length[5-8]
+**Pattern**: Directions repeat in a fixed cycle
+**Examples**: 
+- Cycle [top, bottom, left]: [top, bottom, left, top, bottom, ?] → Answer: left
+- Cycle [left, right]: [left, right, left, right, ?] → Answer: left
+**Parameters**: cycle_length[3,4,5], directions[various combinations], length[5-8]
 **Total**: 54 tasks
 
 ### Type 8: Mixed Sequence
 Tests understanding of sequences with combined attributes.
 
-**Pattern**: Elements combine multiple attributes (color+shape, color+position, shape+position)
-**Example**: [red○, blue□, green△, red○, ?] → Answer: blue□
-**Parameters**: mixed_type[color_shape, color_position, shape_position], length[6,7,8]
-**Total**: 480 tasks
+**Pattern**: Elements combine color and shape attributes and repeat in a fixed cycle
+**Examples**: 
+- Color+Shape cycle [red○, blue□, green△]: [red○, blue□, green△, red○, blue□, ?] → Answer: green△
+- Color+Shape cycle [yellow◇, orange○]: [yellow◇, orange○, yellow◇, orange○, ?] → Answer: yellow◇
+**Parameters**: mixed_type[color_shape], length[6,7,8]
+**Total**: 144 tasks (48 cycles × 3 lengths)
 
 ## 📊 Task Statistics
 
@@ -122,9 +130,9 @@ Tests understanding of sequences with combined attributes.
 | Type 4 | Fibonacci Sequence | 162 |
 | Type 5 | Shape Cycle | 141 |
 | Type 6 | Color Cycle | 110 |
-| Type 7 | Position Cycle | 54 |
-| Type 8 | Mixed Sequence | 480 |
-| **Total** | | **1242+** |
+| Type 7 | Direction Cycle | 54 |
+| Type 8 | Mixed Sequence | 144 |
+| **Total** | | **906+** |
 
 ## 🎨 Visual Design
 
