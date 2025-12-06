@@ -236,14 +236,27 @@ class HunyuanVideoWrapper(ModelWrapper):
     ):
         """Initialize HunyuanVideo wrapper."""
         self.model = model
-        self.output_dir = Path(output_dir)
-        self.output_dir.mkdir(exist_ok=True, parents=True)
+        self._output_dir = Path(output_dir)
+        self._output_dir.mkdir(exist_ok=True, parents=True)
         self.kwargs = kwargs
         
         # Create HunyuanVideoService instance
         self.hunyuan_service = HunyuanVideoService(
-            model_id=model, output_dir=output_dir, **kwargs
+            model_id=model, output_dir=str(self._output_dir), **kwargs
         )
+    
+    @property
+    def output_dir(self) -> Path:
+        """Get the current output directory."""
+        return self._output_dir
+    
+    @output_dir.setter
+    def output_dir(self, value: Union[str, Path]):
+        """Set the output directory and update the service's output_dir too."""
+        self._output_dir = Path(value)
+        self._output_dir.mkdir(exist_ok=True, parents=True)
+        # Also update the service's output_dir
+        self.hunyuan_service.output_dir = self._output_dir
     
     def generate(
         self,

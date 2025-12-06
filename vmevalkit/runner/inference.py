@@ -179,7 +179,7 @@ class InferenceRunner:
             
             init_kwargs = {
                 "model": model_config["model"],
-                "output_dir": str(task_base_dir / "video"),
+                "output_dir": str(task_base_dir),  # Will be updated to specific inference_dir/video later
             }
             
             if "args" in model_config:
