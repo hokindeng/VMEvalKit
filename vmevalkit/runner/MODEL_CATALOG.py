@@ -521,6 +521,38 @@ COGVIDEOX_MODELS = {
     }
 }
 
+# SANA-Video Models (NVLabs/Efficient-Large-Model)
+SANA_VIDEO_MODELS = {
+    "sana-video-2b-480p": {
+        "wrapper_module": "vmevalkit.models.sana_inference",
+        "wrapper_class": "SanaVideoWrapper",
+        "service_class": "SanaVideoService",
+        "model": "Efficient-Large-Model/SANA-Video_2B_480p_diffusers",
+        "args": {
+            "resolution": (480, 832),
+            "num_frames": 81,
+            "fps": 16,
+            "guidance_scale": 4.5
+        },
+        "description": "SANA-Video 2B 480p - Efficient text+image to video (480x832)",
+        "family": "SANA-Video"
+    },
+    "sana-video-2b-longlive": {
+        "wrapper_module": "vmevalkit.models.sana_inference",
+        "wrapper_class": "SanaVideoWrapper",
+        "service_class": "SanaVideoService",
+        "model": "Efficient-Large-Model/SANA-Video_2B_480p_LongLive",
+        "args": {
+            "resolution": (480, 832),
+            "num_frames": 161,
+            "fps": 16,
+            "guidance_scale": 4.5
+        },
+        "description": "SANA-Video 2B LongLive - Extended length video generation",
+        "family": "SANA-Video"
+    }
+}
+
 # ========================================
 # COMBINED REGISTRIES
 # ========================================
@@ -541,7 +573,8 @@ AVAILABLE_MODELS = {
     **MORPHIC_MODELS,
     **SVD_MODELS,
     **WAN_MODELS,
-    **COGVIDEOX_MODELS
+    **COGVIDEOX_MODELS,
+    **SANA_VIDEO_MODELS
 }
 
 # Model families metadata for easier management
@@ -560,7 +593,8 @@ MODEL_FAMILIES = {
     "Morphic": MORPHIC_MODELS,
     "Stable Video Diffusion": SVD_MODELS,
     "WAN (Wan-AI)": WAN_MODELS,
-    "CogVideoX": COGVIDEOX_MODELS
+    "CogVideoX": COGVIDEOX_MODELS,
+    "SANA-Video": SANA_VIDEO_MODELS
 }
 
 # ========================================

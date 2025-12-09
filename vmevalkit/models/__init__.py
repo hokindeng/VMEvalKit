@@ -18,7 +18,8 @@ __all__ = [
     "MorphicService", "MorphicWrapper",
     "SVDService", "SVDWrapper",
     "WanService", "WanWrapper",
-    "CogVideoXService", "CogVideoXWrapper"
+    "CogVideoXService", "CogVideoXWrapper",
+    "SanaVideoService", "SanaVideoWrapper"
 ]
 
 # Module name mapping
@@ -36,6 +37,7 @@ _MODULE_MAP = {
     "svd_inference": ["SVDService", "SVDWrapper"],
     "wan_inference": ["WanService", "WanWrapper"],
     "cogvideox_inference": ["CogVideoXService", "CogVideoXWrapper"],
+    "sana_inference": ["SanaVideoService", "SanaVideoWrapper"],
 }
 
 

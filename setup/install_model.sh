@@ -6,6 +6,7 @@
 #   ./setup/install_model.sh --model ltx-video
 #   ./setup/install_model.sh --model ltx-video --validate
 #   ./setup/install_model.sh --opensource
+#   ./setup/install_model.sh --opensource --validate
 #   ./setup/install_model.sh --commercial --validate
 #   ./setup/install_model.sh --all
 #   ./setup/install_model.sh --all --validate
@@ -34,6 +35,7 @@ Examples:
   ./setup/install_model.sh --model ltx-video
   ./setup/install_model.sh --model ltx-video --validate
   ./setup/install_model.sh --opensource
+  ./setup/install_model.sh --opensource --validate
   ./setup/install_model.sh --commercial --validate
   ./setup/install_model.sh --all
   ./setup/install_model.sh --all --validate
@@ -119,10 +121,10 @@ fi
 
 # Check for conflicting options
 OPTION_COUNT=0
-[[ -n "$MODEL" ]] && ((OPTION_COUNT++))
-[[ "$INSTALL_ALL" == "true" ]] && ((OPTION_COUNT++))
-[[ "$INSTALL_OPENSOURCE" == "true" ]] && ((OPTION_COUNT++))
-[[ "$INSTALL_COMMERCIAL" == "true" ]] && ((OPTION_COUNT++))
+[[ -n "$MODEL" ]] && ((OPTION_COUNT++)) || true
+[[ "$INSTALL_ALL" == "true" ]] && ((OPTION_COUNT++)) || true
+[[ "$INSTALL_OPENSOURCE" == "true" ]] && ((OPTION_COUNT++)) || true
+[[ "$INSTALL_COMMERCIAL" == "true" ]] && ((OPTION_COUNT++)) || true
 
 if [[ $OPTION_COUNT -gt 1 ]]; then
     print_error "Cannot specify multiple installation options (--model, --all, --opensource, --commercial)"

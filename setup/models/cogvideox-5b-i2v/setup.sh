@@ -14,21 +14,9 @@ create_model_venv "$MODEL"
 activate_model_venv "$MODEL"
 
 print_section "Dependencies"
-# PyTorch 2.5+ with CUDA 11.8
 pip install -q torch==2.5.1+cu118 torchvision==0.20.1+cu118 --index-url https://download.pytorch.org/whl/cu118
-
-# Core dependencies with EXACT versions (user requirement)
-pip install -q diffusers==0.31.0 transformers==4.46.2 accelerate==1.2.1
-pip install -q imageio-ffmpeg==0.5.1
-
-# Standard utilities
-pip install -q Pillow==10.4.0 numpy==1.24.4
-
-# Pydantic (user requirement: Always use Pydantic!)
-pip install -q pydantic==2.10.6 pydantic-settings==2.7.1
-
-# Other utilities
-pip install -q python-dotenv==1.2.1 requests==2.32.3
+pip install -q diffusers==0.31.0 transformers==4.46.2 accelerate==1.2.1 imageio-ffmpeg==0.5.1
+pip install -q Pillow==10.4.0 numpy==1.24.4 pydantic==2.10.6 pydantic-settings==2.7.1 python-dotenv==1.2.1 requests==2.32.3
 
 deactivate
 

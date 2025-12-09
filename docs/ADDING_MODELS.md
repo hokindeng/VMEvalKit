@@ -328,30 +328,31 @@ source "${SCRIPT_DIR}/../../lib/common.sh"
 
 MODEL="your-model-name"
 
-# 1. System Dependencies (if needed)
 print_section "System Dependencies"
-ensure_ffmpeg_dependencies  # Provided by common.sh
+ensure_ffmpeg_dependencies
 
-# 2. Virtual Environment
 print_section "Virtual Environment"
-create_model_venv "$MODEL"    # Creates fresh venv at envs/{MODEL}
-activate_model_venv "$MODEL"  # Activates the venv
+create_model_venv "$MODEL"
+activate_model_venv "$MODEL"
 
-# 3. Python Dependencies (ALWAYS specify exact versions)
 print_section "Dependencies"
 pip install -q torch==2.0.0+cu118 torchvision==0.15.1+cu118 --index-url https://download.pytorch.org/whl/cu118
 pip install -q transformers==4.25.1 diffusers==0.31.0 accelerate==1.2.1
-pip install -q Pillow==9.5.0 numpy==1.24.2 opencv-python==4.8.1.78
-pip install -q pydantic==2.12.5 pydantic-settings==2.12.0 python-dotenv==1.2.1
+pip install -q Pillow==9.5.0 numpy==1.24.2 opencv-python==4.8.1.78 pydantic==2.12.5 pydantic-settings==2.12.0 python-dotenv==1.2.1
 
 deactivate
 
-# 4. Model Checkpoints
 print_section "Checkpoints"
 download_checkpoint_by_path "${MODEL_CHECKPOINT_PATHS[$MODEL]}"
 
 print_success "${MODEL} setup complete"
 ```
+
+**Style Guidelines:**
+- Use compact style: group related packages on same line
+- No inline comments in the Dependencies section
+- Keep it consistent with other models (see `dynamicrafter-256`, `svd`, `videocrafter2-512`)
+- Always use exact versions: `package==X.Y.Z`
 
 **Key Functions from `common.sh`:**
 - `create_model_venv "$MODEL"`: Creates fresh virtual environment
@@ -1280,8 +1281,7 @@ activate_model_venv "$MODEL"
 print_section "Dependencies"
 pip install -q torch==2.0.0+cu118 torchvision==0.15.1+cu118 --index-url https://download.pytorch.org/whl/cu118
 pip install -q transformers==4.25.1 diffusers==0.31.0 accelerate==1.2.1
-pip install -q Pillow==9.5.0 numpy==1.24.2 opencv-python==4.8.1.78
-pip install -q pydantic==2.12.5 python-dotenv==1.2.1
+pip install -q Pillow==9.5.0 numpy==1.24.2 opencv-python==4.8.1.78 pydantic==2.12.5 python-dotenv==1.2.1
 
 deactivate
 
