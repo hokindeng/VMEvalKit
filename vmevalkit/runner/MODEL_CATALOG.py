@@ -421,6 +421,18 @@ SVD_MODELS = {
     },
 }
 
+# Sana Models (Diffusers)
+SANA_MODELS = {
+    "sana": {
+        "wrapper_module": "vmevalkit.models.sana_inference",
+        "wrapper_class": "SanaWrapper",
+        "service_class": "SanaService",
+        "model": "Efficient-Large-Model/SANA-Video_2B_480p_diffusers",
+        "description": "SANA Video 2B 480p - Image-to-Video generation with motion control",
+        "family": "Sana"
+    }
+}
+
 # WAN Models (Wan-AI, local diffusers implementation)
 WAN_MODELS = {
     "wan": {
@@ -508,6 +520,7 @@ AVAILABLE_MODELS = {
     **DYNAMICRAFTER_MODELS,
     **MORPHIC_MODELS,
     **SVD_MODELS,
+    **SANA_MODELS,
     **WAN_MODELS
 }
 
@@ -526,6 +539,7 @@ MODEL_FAMILIES = {
     "DynamiCrafter": DYNAMICRAFTER_MODELS,
     "Morphic": MORPHIC_MODELS,
     "Stable Video Diffusion": SVD_MODELS,
+    "Sana": SANA_MODELS,
     "WAN (Wan-AI)": WAN_MODELS
 }
 
