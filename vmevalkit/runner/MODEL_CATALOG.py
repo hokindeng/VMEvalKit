@@ -435,28 +435,12 @@ SANA_MODELS = {
 
 # WAN Models (Wan-AI, local diffusers implementation)
 WAN_MODELS = {
-    "wan": {
-        "wrapper_module": "vmevalkit.models.wan_inference",
-        "wrapper_class": "WanWrapper",
-        "service_class": "WanService",
-        "model": "Wan-AI/Wan2.1-FLF2V-14B-720P-diffusers",
-        "description": "WAN 2.1 FLF2V 14B 720P - First-Last Frame to Video generation",
-        "family": "WAN (Wan-AI)"
-    },
     "wan-2.1-flf2v-720p": {
         "wrapper_module": "vmevalkit.models.wan_inference",
         "wrapper_class": "WanWrapper",
         "service_class": "WanService",
         "model": "Wan-AI/Wan2.1-FLF2V-14B-720P-diffusers",
         "description": "WAN 2.1 FLF2V 14B 720P - First-Last Frame to Video generation",
-        "family": "WAN (Wan-AI)"
-    },
-    "wan-2.2-i2v-a14b": {
-        "wrapper_module": "vmevalkit.models.wan_inference",
-        "wrapper_class": "WanWrapper",
-        "service_class": "WanService",
-        "model": "Wan-AI/Wan2.2-I2V-A14B-Diffusers",
-        "description": "WAN 2.2 I2V A14B - Image to Video generation with 14B parameters",
         "family": "WAN (Wan-AI)"
     },
     "wan-2.1-i2v-480p": {
@@ -475,14 +459,6 @@ WAN_MODELS = {
         "description": "WAN 2.1 I2V 14B 720P - Image to Video generation at 720p resolution",
         "family": "WAN (Wan-AI)"
     },
-    "wan-2.2-ti2v-5b": {
-        "wrapper_module": "vmevalkit.models.wan_inference",
-        "wrapper_class": "WanWrapper",
-        "service_class": "WanService",
-        "model": "Wan-AI/Wan2.2-TI2V-5B-Diffusers",
-        "description": "WAN 2.2 TI2V 5B - Text + Image to Video generation with 5B parameters",
-        "family": "WAN (Wan-AI)"
-    },
     "wan-2.1-vace-14b": {
         "wrapper_module": "vmevalkit.models.wan_inference",
         "wrapper_class": "WanWrapper",
@@ -497,6 +473,22 @@ WAN_MODELS = {
         "service_class": "WanService",
         "model": "Wan-AI/Wan2.1-VACE-1.3B-diffusers",
         "description": "WAN 2.1 VACE 1.3B - Lightweight video generation with 1.3B parameters",
+        "family": "WAN (Wan-AI)"
+    },
+    "wan-2.2-i2v-a14b": {
+        "wrapper_module": "vmevalkit.models.wan_inference",
+        "wrapper_class": "WanWrapper",
+        "service_class": "WanService",
+        "model": "Wan-AI/Wan2.2-I2V-A14B-Diffusers",
+        "description": "WAN 2.2 I2V A14B - Image to Video generation with 14B parameters",
+        "family": "WAN (Wan-AI)"
+    },
+    "wan-2.2-ti2v-5b": {
+        "wrapper_module": "vmevalkit.models.wan_inference",
+        "wrapper_class": "WanWrapper",
+        "service_class": "WanService",
+        "model": "Wan-AI/Wan2.2-TI2V-5B-Diffusers",
+        "description": "WAN 2.2 TI2V 5B - Text + Image to Video generation with 5B parameters",
         "family": "WAN (Wan-AI)"
     }
 }
